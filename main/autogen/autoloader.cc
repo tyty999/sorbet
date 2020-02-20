@@ -185,7 +185,7 @@ string DefTree::renderAutoloadSrc(core::Context ctx, const AutoloaderConfig &alC
     }
 
     string fullName = "nil";
-    string casgn = "nil";
+    string casgnArg = "";
     auto type = definitionType(ctx);
     if (type == Definition::Type::Module || type == Definition::Type::Class) {
         fullName = root() ? "Object" : fmt::format("{}", fmt::map_join(nameParts, "::", [&](const auto &nr) -> string {
@@ -208,13 +208,16 @@ string DefTree::renderAutoloadSrc(core::Context ctx, const AutoloaderConfig &alC
             fmt::format_to(buf, "}})\n", fullName);
         }
     } else if (type == Definition::Type::Casgn) {
-        casgn =
-            fmt::format("'{}'", fmt::map_join(nameParts, "::", [&](const auto &nr) -> string { return nr.show(ctx); }));
+        ENFORCE(nameParts.size() > 1);
+        casgnArg = fmt::format(", [{}, :{}]",
+                               fmt::map_join(nameParts.begin(), --nameParts.end(),
+                                             "::", [&](const auto &nr) -> string { return nr.show(ctx); }),
+                               nameParts.back().show(ctx));
     }
 
     if (definingFile.exists()) {
-        fmt::format_to(buf, "\nOpus::Require.for_autoload({}, \"{}\", {})\n", fullName,
-                       alCfg.normalizePath(ctx, definingFile), casgn);
+        fmt::format_to(buf, "\nOpus::Require.for_autoload({}, \"{}\"{})\n", fullName,
+                       alCfg.normalizePath(ctx, definingFile), casgnArg);
     }
     return to_string(buf);
 }
