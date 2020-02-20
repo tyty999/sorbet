@@ -207,7 +207,7 @@ string DefTree::renderAutoloadSrc(core::Context ctx, const AutoloaderConfig &alC
             }
             fmt::format_to(buf, "}})\n", fullName);
         }
-    } else if (type == Definition::Type::Casgn) {
+    } else if (type == Definition::Type::Casgn || type == Definition::Type::Alias) {
         ENFORCE(nameParts.size() > 1);
         casgnArg = fmt::format(", [{}, :{}]",
                                fmt::map_join(nameParts.begin(), --nameParts.end(),
