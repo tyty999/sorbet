@@ -1,6 +1,7 @@
 #include "core/Files.h"
 #include "core/Context.h"
 #include "core/GlobalState.h"
+#include "core/NameHash.h"
 #include <vector>
 
 #include "absl/strings/match.h"
@@ -163,6 +164,16 @@ bool File::isRBI() const {
 
 bool File::isStdlib() const {
     return fileSigil(source()) == StrictLevel::Stdlib;
+}
+
+void File::setFileHash(std::unique_ptr<const FileHash> fh) {
+    if (this->fileHash == nullptr) {
+        this->fileHash = move(fh);
+    }
+}
+
+std::shared_ptr<const FileHash> File::getFileHash() const {
+    return this->fileHash;
 }
 
 vector<int> &File::lineBreaks() const {

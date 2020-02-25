@@ -9,6 +9,7 @@ namespace sorbet::core {
 class GlobalState;
 class File;
 struct GlobalStateHash;
+struct FileHash;
 namespace serialize {
 class SerializerImpl;
 }
@@ -96,6 +97,8 @@ public:
     int lineCount() const;
     StrictLevel minErrorLevel() const;
 
+    void setFileHash(std::unique_ptr<const FileHash> fh);
+    std::shared_ptr<const FileHash> getFileHash() const;
     /** Given a 1-based line number, returns a string view of the line. */
     std::string_view getLine(int i);
 
@@ -104,6 +107,7 @@ private:
     const std::string source_;
     mutable std::shared_ptr<std::vector<int>> lineBreaks_;
     mutable StrictLevel minErrorLevel_ = StrictLevel::Max;
+    std::shared_ptr<const FileHash> fileHash;
 
 public:
     const StrictLevel originalSigil;
