@@ -19,20 +19,20 @@ unique_ptr<CFG> CFGBuilder::buildFor(core::Context ctx, ast::MethodDef &md) {
         return res;
     }
     u4 temporaryCounter = 1;
-    UnorderedMap<core::SymbolRef, core::LocalVariable> aliases;
-    UnorderedMap<core::NameRef, core::LocalVariable> discoveredUndeclaredFields;
-    CFGContext cctx(ctx, *res.get(), core::LocalVariable(), 0, 0, nullptr, nullptr, nullptr, aliases,
+    UnorderedMap<core::SymbolRef, LocalRef> aliases;
+    UnorderedMap<core::NameRef, LocalRef> discoveredUndeclaredFields;
+    CFGContext cctx(ctx, *res.get(), LocalRef::none(), 0, 0, nullptr, nullptr, nullptr, aliases,
                     discoveredUndeclaredFields, temporaryCounter);
 
-    core::LocalVariable retSym = cctx.newTemporary(core::Names::returnMethodTemp());
+    LocalRef retSym = cctx.newTemporary(core::Names::returnMethodTemp());
 
     BasicBlock *entry = res->entry();
     auto selfClaz = md.symbol.data(ctx)->rebind();
     if (!selfClaz.exists()) {
         selfClaz = md.symbol;
     }
-    synthesizeExpr(entry, core::LocalVariable::selfVariable(), md.loc,
-                   make_unique<Cast>(core::LocalVariable::selfVariable(),
+    synthesizeExpr(entry, LocalRef::selfVariable(), md.loc,
+                   make_unique<Cast>(LocalRef::selfVariable(),
                                      selfClaz.data(ctx)->enclosingClass(ctx).data(ctx)->selfType(ctx),
                                      core::Names::cast()));
     int i = -1;
@@ -42,7 +42,7 @@ unique_ptr<CFG> CFGBuilder::buildFor(core::Context ctx, ast::MethodDef &md) {
         synthesizeExpr(entry, a->localVariable, a->loc, make_unique<LoadArg>(md.symbol, i));
     }
     auto cont = walk(cctx.withTarget(retSym), md.rhs.get(), entry);
-    core::LocalVariable retSym1(core::Names::finalReturn(), 0);
+    LocalRef retSym1 = LocalRef::finalReturn();
 
     auto rvLoc = cont->exprs.empty() || isa_instruction<LoadArg>(cont->exprs.back().value.get())
                      ? md.loc
@@ -53,24 +53,24 @@ unique_ptr<CFG> CFGBuilder::buildFor(core::Context ctx, ast::MethodDef &md) {
     vector<Binding> aliasesPrefix;
     for (auto kv : aliases) {
         core::SymbolRef global = kv.first;
-        core::LocalVariable local = kv.second;
+        LocalRef local = kv.second;
         aliasesPrefix.emplace_back(local, global.data(ctx)->loc(), make_unique<Alias>(global));
         if (global.data(ctx)->isField() || global.data(ctx)->isStaticField()) {
-            res->minLoops[local] = CFG::MIN_LOOP_FIELD;
+            res->minLoops[local.id()] = CFG::MIN_LOOP_FIELD;
         } else {
-            res->minLoops[local] = CFG::MIN_LOOP_GLOBAL;
+            res->minLoops[local.id()] = CFG::MIN_LOOP_GLOBAL;
         }
     }
     for (auto kv : discoveredUndeclaredFields) {
         aliasesPrefix.emplace_back(kv.second, core::Loc::none(),
                                    make_unique<Alias>(core::Symbols::Magic_undeclaredFieldStub()));
-        res->minLoops[kv.second] = CFG::MIN_LOOP_FIELD;
+        res->minLoops[kv.second.id()] = CFG::MIN_LOOP_FIELD;
     }
     histogramInc("cfgbuilder.aliases", aliasesPrefix.size());
     auto basicBlockCreated = res->basicBlocks.size();
     histogramInc("cfgbuilder.basicBlocksCreated", basicBlockCreated);
     fast_sort(aliasesPrefix,
-              [](const Binding &l, const Binding &r) -> bool { return l.bind.variable < r.bind.variable; });
+              [](const Binding &l, const Binding &r) -> bool { return l.bind.variable.id() < r.bind.variable.id(); });
 
     entry->exprs.insert(entry->exprs.begin(), make_move_iterator(aliasesPrefix.begin()),
                         make_move_iterator(aliasesPrefix.end()));
@@ -121,7 +121,7 @@ void CFGBuilder::fillInTopoSorts(core::Context ctx, CFG &cfg) {
     }
 }
 
-CFGContext CFGContext::withTarget(core::LocalVariable target) {
+CFGContext CFGContext::withTarget(LocalRef target) {
     auto ret = CFGContext(*this);
     ret.target = target;
     return ret;
@@ -133,7 +133,7 @@ CFGContext CFGContext::withRubyBlockId(int blockId) {
     return ret;
 }
 
-CFGContext CFGContext::withBlockBreakTarget(core::LocalVariable blockBreakTarget) {
+CFGContext CFGContext::withBlockBreakTarget(LocalRef blockBreakTarget) {
     auto ret = CFGContext(*this);
     ret.blockBreakTarget = blockBreakTarget;
     return ret;

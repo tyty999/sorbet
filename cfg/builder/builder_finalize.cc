@@ -46,7 +46,7 @@ void CFGBuilder::simplify(core::Context ctx, CFG &cfg) {
 
             if (thenb == elseb) {
                 // Remove condition from unconditional jumps
-                bb->bexit.cond = core::LocalVariable::noVariable();
+                bb->bexit.cond = enterLocal(ctx, cfg, core::LocalVariable::noVariable());
             }
             if (thenb == elseb && thenb != cfg.deadBlock() && thenb != bb) { // can be squashed togather
                 if (thenb->backEdges.size() == 1 && thenb->outerLoops == bb->outerLoops) {
@@ -63,7 +63,7 @@ void CFGBuilder::simplify(core::Context ctx, CFG &cfg) {
                     changed = true;
                     sanityCheck(ctx, cfg);
                     continue;
-                } else if (thenb->bexit.cond.variable != core::LocalVariable::blockCall() && thenb->exprs.empty()) {
+                } else if (!thenb->bexit.cond.variable.isBlockCall() && thenb->exprs.empty()) {
                     // Don't remove block headers
                     bb->bexit.cond.variable = thenb->bexit.cond.variable;
                     bb->bexit.thenb = thenb->bexit.thenb;
@@ -129,9 +129,9 @@ void CFGBuilder::sanityCheck(core::Context ctx, CFG &cfg) {
     }
 }
 
-core::LocalVariable maybeDealias(core::Context ctx, core::LocalVariable what,
-                                 UnorderedMap<core::LocalVariable, core::LocalVariable> &aliases) {
-    if (what.isSyntheticTemporary(ctx)) {
+LocalRef maybeDealias(CFG &cfg, core::Context ctx, LocalRef what,
+                                 UnorderedMap<LocalRef, LocalRef> &aliases) {
+    if (what.isSyntheticTemporary(cfg, ctx)) {
         auto fnd = aliases.find(what);
         if (fnd != aliases.end()) {
             return fnd->second;
@@ -148,7 +148,7 @@ core::LocalVariable maybeDealias(core::Context ctx, core::LocalVariable what,
  * because `a.foo(a = "2", if (...) a = true; else a = null; end)`
  */
 void CFGBuilder::dealias(core::Context ctx, CFG &cfg) {
-    vector<UnorderedMap<core::LocalVariable, core::LocalVariable>> outAliases;
+    vector<vector<LocalRef>> outAliases;
 
     outAliases.resize(cfg.maxBasicBlockId);
     for (auto it = cfg.forwardsTopoSort.rbegin(); it != cfg.forwardsTopoSort.rend(); ++it) {
@@ -156,7 +156,7 @@ void CFGBuilder::dealias(core::Context ctx, CFG &cfg) {
         if (bb == cfg.deadBlock()) {
             continue;
         }
-        UnorderedMap<core::LocalVariable, core::LocalVariable> &current = outAliases[bb->id];
+        vector<LocalRef> &current = outAliases[bb->id];
         if (!bb->backEdges.empty()) {
             current = outAliases[bb->backEdges[0]->id];
         }
@@ -180,7 +180,7 @@ void CFGBuilder::dealias(core::Context ctx, CFG &cfg) {
 
         for (Binding &bind : bb->exprs) {
             if (auto *i = cast_instruction<Ident>(bind.value.get())) {
-                i->what = maybeDealias(ctx, i->what, current);
+                i->what = maybeDealias(cfg, ctx, i->what, current);
             }
             /* invalidate a stale record */
             for (auto it = current.begin(); it != current.end(); /* nothing */) {
@@ -195,16 +195,16 @@ void CFGBuilder::dealias(core::Context ctx, CFG &cfg) {
                 // we don't allow dealiasing values into synthetic instructions
                 // as otherwise it fools dead code analysis.
                 if (auto *v = cast_instruction<Ident>(bind.value.get())) {
-                    v->what = maybeDealias(ctx, v->what, current);
+                    v->what = maybeDealias(cfg, ctx, v->what, current);
                 } else if (auto *v = cast_instruction<Send>(bind.value.get())) {
-                    v->recv = maybeDealias(ctx, v->recv.variable, current);
+                    v->recv = maybeDealias(cfg, ctx, v->recv.variable, current);
                     for (auto &arg : v->args) {
-                        arg = maybeDealias(ctx, arg.variable, current);
+                        arg = maybeDealias(cfg, ctx, arg.variable, current);
                     }
                 } else if (auto *v = cast_instruction<TAbsurd>(bind.value.get())) {
-                    v->what = maybeDealias(ctx, v->what.variable, current);
+                    v->what = maybeDealias(cfg, ctx, v->what.variable, current);
                 } else if (auto *v = cast_instruction<Return>(bind.value.get())) {
-                    v->what = maybeDealias(ctx, v->what.variable, current);
+                    v->what = maybeDealias(cfg, ctx, v->what.variable, current);
                 }
             }
 
@@ -214,7 +214,7 @@ void CFGBuilder::dealias(core::Context ctx, CFG &cfg) {
             }
         }
         if (bb->bexit.cond.variable.exists()) {
-            bb->bexit.cond = maybeDealias(ctx, bb->bexit.cond.variable, current);
+            bb->bexit.cond = maybeDealias(cfg, ctx, bb->bexit.cond.variable, current);
         }
     }
 }

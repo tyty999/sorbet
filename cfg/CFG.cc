@@ -36,82 +36,97 @@ CFG::ReadsAndWrites CFG::findAllReadsAndWrites(core::Context ctx) {
     target.reads.resize(maxBasicBlockId);
     target.writes.resize(maxBasicBlockId);
     target.dead.resize(maxBasicBlockId);
-    vector<UnorderedSet<core::LocalVariable>> readsAndWrites(maxBasicBlockId);
+    vector<vector<bool>> readsAndWrites(maxBasicBlockId);
 
     for (unique_ptr<BasicBlock> &bb : this->basicBlocks) {
         auto &blockWrites = target.writes[bb->id];
+        blockWrites.resize(maxVariableId);
         auto &blockReads = target.reads[bb->id];
+        blockReads.resize(maxVariableId);
         auto &blockDead = target.dead[bb->id];
+        blockDead.resize(maxVariableId);
         auto &blockReadsAndWrites = readsAndWrites[bb->id];
+        blockReadsAndWrites.resize(maxVariableId);
         for (Binding &bind : bb->exprs) {
-            blockWrites.insert(bind.bind.variable);
-            blockReadsAndWrites.insert(bind.bind.variable);
+            blockWrites[bind.bind.variable.id()] = true;
+            blockReadsAndWrites[bind.bind.variable.id()] = true;
             /*
              * When we write to an alias, we rely on the type information being
              * propagated through block arguments from the point of
              * assignment. Treating every write as also reading from the
              * variable serves to represent this.
              */
-            if (bind.bind.variable.isAliasForGlobal(ctx) && cast_instruction<Alias>(bind.value.get()) == nullptr) {
-                blockReads.insert(bind.bind.variable);
+            if (bind.bind.variable.isAliasForGlobal(*this, ctx) && cast_instruction<Alias>(bind.value.get()) == nullptr) {
+                blockReads[bind.bind.variable.id()] = true;
             }
 
             if (auto *v = cast_instruction<Ident>(bind.value.get())) {
-                blockReads.insert(v->what);
-                blockReadsAndWrites.insert(v->what);
+                blockReads[v->what.id()] = true;
+                blockReadsAndWrites[v->what.id()] = true;
             } else if (auto *v = cast_instruction<Send>(bind.value.get())) {
-                blockReads.insert(v->recv.variable);
-                blockReadsAndWrites.insert(v->recv.variable);
+                blockReads[v->recv.variable.id()] = true;
+                blockReadsAndWrites[v->recv.variable.id()] = true;
                 for (auto &arg : v->args) {
-                    blockReads.insert(arg.variable);
-                    blockReadsAndWrites.insert(arg.variable);
+                    blockReads[arg.variable.id()] = true;
+                    blockReadsAndWrites[arg.variable.id()] = true;
                 }
             } else if (auto *v = cast_instruction<TAbsurd>(bind.value.get())) {
-                blockReads.insert(v->what.variable);
+                blockReads[v->what.variable.id()] = true;
+                blockReadsAndWrites[v->what.variable.id()] = true;
             } else if (auto *v = cast_instruction<Return>(bind.value.get())) {
-                blockReads.insert(v->what.variable);
-                blockReadsAndWrites.insert(v->what.variable);
+                blockReads[v->what.variable.id()] = true;
+                blockReadsAndWrites[v->what.variable.id()] = true;
             } else if (auto *v = cast_instruction<BlockReturn>(bind.value.get())) {
-                blockReads.insert(v->what.variable);
-                blockReadsAndWrites.insert(v->what.variable);
+                blockReads[v->what.variable.id()] = true;
+                blockReadsAndWrites[v->what.variable.id()] = true;
             } else if (auto *v = cast_instruction<Cast>(bind.value.get())) {
-                blockReads.insert(v->value.variable);
-                blockReadsAndWrites.insert(v->value.variable);
+                blockReads[v->value.variable.id()] = true;
+                blockReadsAndWrites[v->value.variable.id()] = true;
             } else if (auto *v = cast_instruction<LoadSelf>(bind.value.get())) {
-                blockReads.insert(v->fallback);
-                blockReadsAndWrites.insert(v->fallback);
+                blockReads[v->fallback.id()] = true;
+                blockReadsAndWrites[v->fallback.id()] = true;
             } else if (auto *v = cast_instruction<SolveConstraint>(bind.value.get())) {
-                blockReads.insert(v->send);
-                blockReadsAndWrites.insert(v->send);
+                blockReads[v->send.id()] = true;
+                blockReadsAndWrites[v->send.id()] = true;
             }
 
-            auto fnd = blockReads.find(bind.bind.variable);
-            if (fnd == blockReads.end()) {
-                blockDead.insert(bind.bind.variable);
+            auto fnd = blockReads[bind.bind.variable.id()];
+            if (!fnd) {
+                blockDead[bind.bind.variable.id()] = true;
             }
         }
         if (bb->bexit.cond.variable.exists()) {
-            blockReads.insert(bb->bexit.cond.variable);
-            blockReadsAndWrites.insert(bb->bexit.cond.variable);
+            blockReads[bb->bexit.cond.variable.id()] = true;
+            blockReadsAndWrites[bb->bexit.cond.variable.id()] = true;
         }
     }
-    UnorderedMap<core::LocalVariable, pair<int, int>> usageCounts;
+    vector<pair<int, int>> usageCounts;
+    usageCounts.resize(maxVariableId);
 
     {
         Timer timeit(ctx.state.tracer(), "privates1");
 
         for (auto blockId = 0; blockId < maxBasicBlockId; blockId++) {
-            for (auto &el : readsAndWrites[blockId]) {
-                usageCounts.try_emplace(el, make_pair(0, blockId)).first->second.first += 1;
+                auto local = 0;
+            for (auto el : readsAndWrites[blockId]) {
+                    if (el) {
+                if (usageCounts[local].first == 0) {
+                  usageCounts[local].second = blockId;
+                }
+                usageCounts[local].first += 1;
+                    }
+                local += 1;
             }
         }
     }
     {
         Timer timeit(ctx.state.tracer(), "privates2");
-        for (const auto &[local, usages] : usageCounts) {
+        int local = 0;
+        for (const auto &usages : usageCounts) {
             if (usages.first == 1) {
-                target.writes[usages.second].erase(local);
+                target.writes[usages.second][local] = false;
             }
+            local += 1;
         }
     }
 
@@ -124,7 +139,7 @@ void CFG::sanityCheck(core::Context ctx) {
     }
 
     for (auto &bb : this->basicBlocks) {
-        ENFORCE(bb->bexit.isCondSet(), "Block exit condition left unset for block {}", bb->toString(ctx));
+        ENFORCE(bb->bexit.isCondSet(), "Block exit condition left unset for block {}", bb->toString(*this, ctx));
 
         if (bb.get() == deadBlock()) {
             continue;
@@ -153,7 +168,7 @@ string CFG::toString(const core::GlobalState &gs) const {
                    "    \"bb{}_1\" [shape = parallelogram];\n\n",
                    symbolName, symbolName, symbolName, symbolName);
     for (auto &basicBlock : this->basicBlocks) {
-        auto text = basicBlock->toString(gs);
+        auto text = basicBlock->toString(*this, gs);
         auto lines = absl::StrSplit(text, "\n");
 
         fmt::format_to(
@@ -186,7 +201,7 @@ string CFG::showRaw(core::Context ctx) const {
                    "    \"bb{}_1\" [shape = parallelogram];\n\n",
                    symbolName, symbolName, symbolName, symbolName);
     for (auto &basicBlock : this->basicBlocks) {
-        auto text = basicBlock->showRaw(ctx);
+        auto text = basicBlock->showRaw(*this, ctx);
         auto lines = absl::StrSplit(text, "\n");
 
         fmt::format_to(
@@ -208,50 +223,50 @@ string CFG::showRaw(core::Context ctx) const {
     return to_string(buf);
 }
 
-string BasicBlock::toString(const core::GlobalState &gs) const {
+string BasicBlock::toString(const CFG &cfg, const core::GlobalState &gs) const {
     fmt::memory_buffer buf;
     fmt::format_to(
         buf, "block[id={}, rubyBlockId={}]({})\n", this->id, this->rubyBlockId,
         fmt::map_join(
-            this->args.begin(), this->args.end(), ", ", [&](const auto &arg) -> auto { return arg.toString(gs); }));
+            this->args.begin(), this->args.end(), ", ", [&](const auto &arg) -> auto { return arg.toString(cfg, gs); }));
 
     if (this->outerLoops > 0) {
         fmt::format_to(buf, "outerLoops: {}\n", this->outerLoops);
     }
     for (const Binding &exp : this->exprs) {
-        fmt::format_to(buf, "{} = {}\n", exp.bind.toString(gs), exp.value->toString(gs));
+        fmt::format_to(buf, "{} = {}\n", exp.bind.toString(cfg, gs), exp.value->toString(cfg, gs));
     }
     if (this->bexit.cond.variable.exists()) {
-        fmt::format_to(buf, "{}", this->bexit.cond.toString(gs));
+        fmt::format_to(buf, "{}", this->bexit.cond.toString(cfg, gs));
     } else {
         fmt::format_to(buf, "<unconditional>");
     }
     return to_string(buf);
 }
 
-string BasicBlock::showRaw(core::Context ctx) const {
+string BasicBlock::showRaw(const CFG &cfg, const core::GlobalState &gs) const {
     fmt::memory_buffer buf;
     fmt::format_to(
         buf, "block[id={}]({})\n", this->id,
         fmt::map_join(
-            this->args.begin(), this->args.end(), ", ", [&](const auto &arg) -> auto { return arg.showRaw(ctx); }));
+            this->args.begin(), this->args.end(), ", ", [&](const auto &arg) -> auto { return arg.showRaw(cfg, gs); }));
 
     if (this->outerLoops > 0) {
         fmt::format_to(buf, "outerLoops: {}\n", this->outerLoops);
     }
     for (const Binding &exp : this->exprs) {
-        fmt::format_to(buf, "Binding {{\n&nbsp;bind = {},\n&nbsp;value = {},\n}}\n", exp.bind.showRaw(ctx, 1),
-                       exp.value->showRaw(ctx, 1));
+        fmt::format_to(buf, "Binding {{\n&nbsp;bind = {},\n&nbsp;value = {},\n}}\n", exp.bind.showRaw(cfg, gs, 1),
+                       exp.value->showRaw(cfg, gs, 1));
     }
     if (this->bexit.cond.variable.exists()) {
-        fmt::format_to(buf, "{}", this->bexit.cond.showRaw(ctx));
+        fmt::format_to(buf, "{}", this->bexit.cond.showRaw(cfg, gs));
     } else {
         fmt::format_to(buf, "<unconditional>");
     }
     return to_string(buf);
 }
 
-Binding::Binding(core::LocalVariable bind, core::Loc loc, unique_ptr<Instruction> value)
+Binding::Binding(LocalRef bind, core::Loc loc, unique_ptr<Instruction> value)
     : bind(bind), loc(loc), value(std::move(value)) {}
 
 } // namespace sorbet::cfg
