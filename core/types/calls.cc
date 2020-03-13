@@ -1742,6 +1742,7 @@ public:
             DispatchArgs innerArgs{Names::new_(), sendLocs, sendArgStore, selfTy, selfTy, args.block};
             dispatched = selfTy->dispatchCall(gs, innerArgs);
             returnTy = dispatched.returnType;
+
         } else {
             // Otherwise, we know that this is the proper new intrinsic, and we
             // should be returning something of type `T.attached_class`
@@ -1936,7 +1937,8 @@ public:
 
 class Array_flatten : public IntrinsicMethod {
     // Flattens a (nested) array all way down to its (inner) element type, stopping if we hit the depth limit first.
-    static TypePtr recursivelyFlattenArrays(const GlobalState &gs, const TypePtr &type, const int64_t depth) {
+    static TypePtr recursivelyFlattenArrays(const GlobalState &gs, DispatchArgs args, const TypePtr &type,
+                                            DispatchResult &res, const int64_t depth) {
         ENFORCE(type != nullptr);
 
         if (depth == 0) {
@@ -1951,20 +1953,44 @@ class Array_flatten : public IntrinsicMethod {
             // This only shows up because t->elementType() for tuples returns an OrType of all its elements.
             // So to properly handle nested tuples, we have to descend into the OrType's.
             [&](OrType *o) {
-                result = Types::any(gs, recursivelyFlattenArrays(gs, o->left, newDepth),
-                                    recursivelyFlattenArrays(gs, o->right, newDepth));
+                result = Types::any(gs, recursivelyFlattenArrays(gs, args, o->left, res, newDepth),
+                                    recursivelyFlattenArrays(gs, args, o->right, res, newDepth));
             },
 
             [&](AppliedType *a) {
-                if (a->klass != Symbols::Array()) {
-                    result = type;
+                if (a->klass == Symbols::Array()) {
+                    ENFORCE(a->targs.size() == 1);
+                    result = recursivelyFlattenArrays(gs, args, a->targs.front(), res, newDepth);
                     return;
                 }
-                ENFORCE(a->targs.size() == 1);
-                result = recursivelyFlattenArrays(gs, a->targs.front(), newDepth);
+
+                auto recursiveFlatten = a->klass.data(gs)->findMember(gs, Names::flatten());
+                if (recursiveFlatten.exists()) {
+                    InlinedVector<const TypeAndOrigins *, 2> sendArgStore;
+                    InlinedVector<Loc, 2> sendArgLocs;
+                    CallLocs sendLocs{args.locs.call, args.locs.args[0], sendArgLocs};
+                    DispatchArgs innerArgs{Names::flatten(), sendLocs, sendArgStore, type, type, nullptr};
+
+                    auto dispatched = type->dispatchCall(gs, innerArgs);
+
+                    for (auto &err : res.main.errors) {
+                        dispatched.main.errors.emplace_back(std::move(err));
+                    }
+
+                    auto maybeApplied = cast_type<AppliedType>(dispatched.returnType.get());
+                    if (maybeApplied != nullptr && maybeApplied->klass == Symbols::Array()) {
+                        result = recursivelyFlattenArrays(gs, args, dispatched.returnType, res, newDepth);
+                        return;
+                    }
+                    result = dispatched.returnType;
+                    return;
+                }
+
+                result = type;
+                return;
             },
 
-            [&](TupleType *t) { result = recursivelyFlattenArrays(gs, t->elementType(), newDepth); },
+            [&](TupleType *t) { result = recursivelyFlattenArrays(gs, args, t->elementType(), res, newDepth); },
 
             [&](Type *t) { result = std::move(type); });
         return result;
@@ -2014,7 +2040,7 @@ public:
             return;
         }
 
-        res.returnType = Types::arrayOf(gs, recursivelyFlattenArrays(gs, element, depth));
+        res.returnType = Types::arrayOf(gs, recursivelyFlattenArrays(gs, args, element, res, depth));
     }
 } Array_flatten;
 
