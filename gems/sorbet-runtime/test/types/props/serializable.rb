@@ -20,6 +20,14 @@ class Opus::Types::Test::Props::SerializableTest < Critic::Unit::UnitTest
     prop :foo, T.nilable(T::Hash[T.any(String, Symbol), Object])
   end
 
+  class MyNestingSerializable
+    include T::Props::Serializable
+    prop :nested, T.nilable(MySerializable)
+    prop :nested_array, T::Array[MySerializable], default: []
+    prop :nested_hash, T::Hash[String, MySerializable], default: {}
+    prop :nested_set, T::Set[MySerializable], default: Set.new
+  end
+
   def a_serializable
     m = MySerializable.new
     m.name = "Bob"
@@ -116,21 +124,82 @@ class Opus::Types::Test::Props::SerializableTest < Critic::Unit::UnitTest
     end
   end
 
+  class CustomSerializer < T::Struct
+    const :value, T.nilable(String)
+
+    def self.from_hash(hash, _strict=false)
+      new(value: hash[:value])
+    end
+
+    def serialize(_strict=true)
+      {value: value}
+    end
+  end
+
+  class HasCustomSerializerField < T::Struct
+    const :subdoc, CustomSerializer
+  end
+
   describe '.from_hash' do
-    it 'round-trips' do
-      m = a_serializable
-      assert_equal(m.serialize, m.class.from_hash(m.serialize).serialize)
-    end
+    %i{clone freeze}.each do |transform_mode|
+      describe "in #{transform_mode} mode" do
+        it 'round-trips' do
+          m = a_serializable
+          assert_equal(m.serialize, m.class.from_hash(m.serialize, false, transform_mode).serialize)
+        end
 
-    it 'round-trips extra props' do
-      m = a_serializable
-      input = m.serialize.merge('not_a_prop' => 'foo')
-      assert_equal('foo', m.class.from_hash(input).serialize['not_a_prop'])
-    end
+        it 'round-trips extra props' do
+          m = a_serializable
+          input = m.serialize.merge('not_a_prop' => 'foo')
+          assert_equal('foo', m.class.from_hash(input, false, transform_mode).serialize['not_a_prop'])
+        end
 
-    it 'does not call the constructor' do
-      MySerializable.any_instance.expects(:new).never
-      MySerializable.from_hash({})
+        it 'does not call the constructor' do
+          MySerializable.any_instance.expects(:new).never
+          MySerializable.from_hash({}, false, transform_mode)
+        end
+
+        it 'round-trips extra props by default' do
+          result = MySerializable.from_hash({'this_is_not_a_prop' => true}, false, transform_mode)
+          assert_equal({'this_is_not_a_prop' => true}, result.serialize)
+        end
+
+        it 'raises on extra props when strict' do
+          err = assert_raises do
+            MySerializable.from_hash({'this_is_not_a_prop' => true}, true, transform_mode)
+          end
+          assert_match(/Unknown properties.*this_is_not_a_prop/, err.message)
+        end
+
+        it 'round-trips with nesting' do
+          obj = MyNestingSerializable.new
+          obj.nested = a_serializable
+          obj.nested_array = [a_serializable]
+          obj.nested_hash = {'key'=>a_serializable}
+          obj.nested_set = [a_serializable].to_set
+          assert_equal(obj.serialize, obj.class.from_hash(obj.serialize, false, transform_mode).serialize)
+        end
+
+        it 'round-trips nested extra props by default' do
+          obj = MyNestingSerializable.from_hash(
+            {'nested' => {'this_is_not_a_prop' => true}},
+            false,
+            transform_mode
+          )
+          assert_equal({'this_is_not_a_prop' => true}, obj.serialize['nested'])
+        end
+
+        it 'round-trips with custom serde implementations' do
+          m = HasCustomSerializerField.new(
+            subdoc: CustomSerializer.new(value: 'foo')
+          )
+          h = m.serialize
+          assert_equal('foo', h.dig('subdoc', :value))
+
+          m2 = HasCustomSerializerField.from_hash(h, false, transform_mode)
+          assert_equal('foo', m2.subdoc.value)
+        end
+      end
     end
   end
 
@@ -213,14 +282,74 @@ class Opus::Types::Test::Props::SerializableTest < Critic::Unit::UnitTest
       refute_equal(m.foo['hello'].object_id, h['foo']['hello'].object_id, "`foo.hello` is the same object")
     end
 
-    it 'does not share structure on deserialize' do
+    it 'does not share structure and is not frozen on deserialize by default' do
       h = {
         'name' => 'hi',
         'foo' => {'hello' => {'world' => 1}},
       }
       m = MySerializable.from_hash(h)
       refute_equal(m.foo.object_id, h['foo'].object_id, "`foo` is the same object")
+      refute(m.foo.frozen?)
       refute_equal(m.foo['hello'].object_id, h['foo']['hello'].object_id, "`foo.hello` is the same object")
+      refute(m.foo['hello'].frozen?)
+    end
+
+    it 'does not share structure and is not frozen on deserialize if transform_mode is :clone' do
+      h = {
+        'name' => 'hi',
+        'foo' => {'hello' => {'world' => 1}},
+      }
+      m = MySerializable.decorator.from_hash(h, true, :clone)
+      refute_equal(m.foo.object_id, h['foo'].object_id, "`foo` is the same object")
+      refute(m.foo.frozen?)
+      refute_equal(m.foo['hello'].object_id, h['foo']['hello'].object_id, "`foo.hello` is the same object")
+      refute(m.foo['hello'].frozen?)
+    end
+
+    it 'is frozen on deserialize if transform_mode is :freeze' do
+      h = {
+        'name' => 'hi',
+        'foo' => {'hello' => {'world' => 1}},
+      }
+      m = MySerializable.decorator.from_hash(h, true, :freeze)
+      assert(m.foo.frozen?)
+      assert(m.foo['hello'].frozen?)
+
+      assert_equal(m.foo['hello'].object_id, h['foo']['hello'].object_id, "`foo.hello` is not the same object")
+
+      # Making this work requires changing the return type of
+      # `SerdeTransform.generate` so that we can tell if an inner transform was
+      # just a freeze in place (such that `each` is safe) or if it was an inner
+      # deserialize (in which case we need to `map`).
+      # assert_equal(m.foo.object_id, h['foo'].object_id, "`foo` is not the same object")
+    end
+  end
+
+  class MyArraySerializable
+    include T::Props::Serializable
+    prop :array, T::Array[Integer]
+  end
+
+  describe 'simple array prop' do
+    it 'is not same object and is not frozen on deserialize by default' do
+      array = []
+      m = MyArraySerializable.from_hash('array' => array)
+      refute_equal(array.object_id, m.array.object_id)
+      refute(array.frozen?)
+    end
+
+    it 'is not same object and is not frozen on deserialize when transform_mode is :clone' do
+      array = []
+      m = MyArraySerializable.decorator.from_hash({'array' => array}, true, :clone)
+      refute_equal(array.object_id, m.array.object_id)
+      refute(array.frozen?)
+    end
+
+    it 'is same object and is frozen on deserialize when transform_mode is :freeze' do
+      array = []
+      m = MyArraySerializable.decorator.from_hash({'array' => array}, true, :freeze)
+      assert_equal(array.object_id, m.array.object_id)
+      assert(array.frozen?)
     end
   end
 
@@ -749,6 +878,9 @@ class Opus::Types::Test::Props::SerializableTest < Critic::Unit::UnitTest
     describe 'deserialize' do
       it 'validates' do
         src = ComplexStruct.decorator.send(:generate_deserialize_source).to_s
+        T::Props::GeneratedCodeValidation.validate_deserialize(src)
+
+        src = ComplexStruct.decorator.send(:generate_deserialize_frozen_source).to_s
         T::Props::GeneratedCodeValidation.validate_deserialize(src)
       end
 

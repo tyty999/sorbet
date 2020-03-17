@@ -8,21 +8,18 @@ module T::Props
 
       class Serialize; end
       private_constant :Serialize
-      class Deserialize; end
-      private_constant :Deserialize
-      ModeType = T.type_alias {T.any(Serialize, Deserialize)}
+      class DeserializeCloned; end
+      private_constant :DeserializeCloned
+      class DeserializeFrozen; end
+      private_constant :DeserializeFrozen
+      ModeType = T.type_alias {T.any(Serialize, DeserializeCloned, DeserializeFrozen)}
       private_constant :ModeType
 
       module Mode
         SERIALIZE = T.let(Serialize.new.freeze, Serialize)
-        DESERIALIZE = T.let(Deserialize.new.freeze, Deserialize)
+        DESERIALIZE_CLONED = T.let(DeserializeCloned.new.freeze, DeserializeCloned)
+        DESERIALIZE_FROZEN = T.let(DeserializeFrozen.new.freeze, DeserializeFrozen)
       end
-
-      NO_TRANSFORM_TYPES = T.let(
-        [TrueClass, FalseClass, NilClass, Symbol, String, Numeric].freeze,
-        T::Array[Module],
-      )
-      private_constant :NO_TRANSFORM_TYPES
 
       sig do
         params(
@@ -34,37 +31,42 @@ module T::Props
         .checked(:never)
       end
       def self.generate(type, mode, varname)
+        dup_or_freeze = mode == Mode::DESERIALIZE_FROZEN ? 'freeze' : 'dup'
+        maybe_freeze = mode == Mode::DESERIALIZE_FROZEN ? '.freeze' : ''
+
         case type
         when T::Types::TypedArray
           inner = generate(type.type, mode, 'v')
           if inner.nil?
-            "#{varname}.dup"
+            "#{varname}.#{dup_or_freeze}"
           else
-            "#{varname}.map {|v| #{inner}}"
+            "#{varname}.map {|v| #{inner}}#{maybe_freeze}"
           end
         when T::Types::TypedSet
           inner = generate(type.type, mode, 'v')
           if inner.nil?
-            "#{varname}.dup"
+            "#{varname}.#{dup_or_freeze}"
           else
-            "Set.new(#{varname}) {|v| #{inner}}"
+            "Set.new(#{varname}) {|v| #{inner}}#{maybe_freeze}"
           end
         when T::Types::TypedHash
           keys = generate(type.keys, mode, 'k')
           values = generate(type.values, mode, 'v')
           if keys && values
-            "#{varname}.each_with_object({}) {|(k,v),h| h[#{keys}] = #{values}}"
+            "#{varname}.each_with_object({}) {|(k,v),h| h[#{keys}] = #{values}}#{maybe_freeze}"
           elsif keys
-            "#{varname}.transform_keys {|k| #{keys}}"
+            "#{varname}.transform_keys {|k| #{keys}}#{maybe_freeze}"
           elsif values
-            "#{varname}.transform_values {|v| #{values}}"
+            "#{varname}.transform_values {|v| #{values}}#{maybe_freeze}"
           else
-            "#{varname}.dup"
+            "#{varname}.#{dup_or_freeze}"
           end
         when T::Types::Simple
           raw = type.raw_type
-          if NO_TRANSFORM_TYPES.any? {|cls| raw <= cls}
+          if raw == NilClass || raw == TrueClass || raw == FalseClass || Symbol >= raw || Numeric >= raw
             nil
+          elsif String >= raw
+            mode == Mode::DESERIALIZE_FROZEN ? "#{varname}.freeze" : nil
           elsif raw < T::Props::Serializable
             handle_serializable_subtype(varname, raw, mode)
           elsif raw.singleton_class < T::Props::CustomType
@@ -80,7 +82,7 @@ module T::Props
             # string comparisons.
             nil
           else
-            "T::Props::Utils.deep_clone_object(#{varname})"
+            handle_unknown_type(varname, mode)
           end
         when T::Types::Union
           non_nil_type = T::Utils.unwrap_nilable(type)
@@ -96,7 +98,7 @@ module T::Props
             if type.types.all? {|t| generate(t, mode, varname).nil?}
               nil
             else
-              "T::Props::Utils.deep_clone_object(#{varname})"
+              handle_unknown_type(varname, mode)
             end
           end
         when T::Types::Enum
@@ -106,7 +108,7 @@ module T::Props
             # Sometimes this comes wrapped in a T::Types::Simple and sometimes not
             handle_custom_type(varname, T.unsafe(type), mode)
           else
-            "T::Props::Utils.deep_clone_object(#{varname})"
+            handle_unknown_type(varname, mode)
           end
         end
       end
@@ -116,9 +118,17 @@ module T::Props
         case mode
         when Serialize
           "#{varname}.serialize(strict)"
-        when Deserialize
+        when DeserializeCloned
           type_name = T.must(module_name(type))
           "#{type_name}.from_hash(#{varname})"
+        when DeserializeFrozen
+          type_name = T.must(module_name(type))
+          if type.method(:from_hash).owner == T::Props::Serializable::ClassMethods &&
+              type.instance_method(:deserialize).owner == T::Props::Serializable
+            "#{type_name}.from_hash(#{varname}, false, :freeze)"
+          else
+            "T::Props::Utils.deep_freeze_object!(#{type_name}.from_hash(#{varname}))"
+          end
         else
           T.absurd(mode)
         end
@@ -130,9 +140,24 @@ module T::Props
         when Serialize
           type_name = T.must(module_name(type))
           "T::Props::CustomType.checked_serialize(#{type_name}, #{varname})"
-        when Deserialize
+        when DeserializeCloned
           type_name = T.must(module_name(type))
           "#{type_name}.deserialize(#{varname})"
+        when DeserializeFrozen
+          type_name = T.must(module_name(type))
+          "T::Props::Utils.deep_freeze_object!(#{type_name}.deserialize(#{varname}))"
+        else
+          T.absurd(mode)
+        end
+      end
+
+      sig {params(varname: String, mode: ModeType).returns(String).checked(:never)}
+      private_class_method def self.handle_unknown_type(varname, mode)
+        case mode
+        when Serialize, DeserializeCloned
+          "T::Props::Utils.deep_clone_object(#{varname})"
+        when DeserializeFrozen
+          "T::Props::Utils.deep_freeze_object!(#{varname})"
         else
           T.absurd(mode)
         end

@@ -24,11 +24,17 @@ module T::Props
         params(
           props: T::Hash[Symbol, T::Hash[Symbol, T.untyped]],
           defaults: T::Hash[Symbol, T::Props::Private::ApplyDefault],
+          method_name: Symbol,
+          transform_mode: SerdeTransform::Mode,
         )
         .returns(String)
         .checked(:never)
       end
-      def self.generate(props, defaults)
+      def self.generate(props, defaults, method_name, transform_mode)
+        unless T::Props::Decorator::SAFE_NAME.match?(method_name)
+          raise ArgumentError.new("Invalid method_name: #{method_name}")
+        end
+
         stored_props = props.reject {|_, rules| rules[:dont_store]}
         parts = stored_props.map do |prop, rules|
           # All of these strings should already be validated (directly or
@@ -45,8 +51,8 @@ module T::Props
 
           transformation = SerdeTransform.generate(
             T::Utils::Nilable.get_underlying_type_object(rules.fetch(:type_object)),
-            SerdeTransform::Mode::DESERIALIZE,
-            'val'
+            transform_mode,
+            'val',
           )
           if transformation
             # Rescuing exactly NoMethodError is intended as a temporary hack
@@ -93,7 +99,7 @@ module T::Props
         end
 
         <<~RUBY
-          def __t_props_generated_deserialize(hash)
+          def #{method_name}(hash)
             found = #{stored_props.size}
             #{parts.join("\n\n")}
             found

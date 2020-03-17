@@ -52,14 +52,18 @@ module T::Props::Serializable
   #  the hash contains keys that do not correspond to any known
   #  props on this instance.
   # @return [void]
-  def deserialize(hash, strict=false)
+  def deserialize(hash, strict=false, transform_mode=:clone)
     begin
-      hash_keys_matching_props = __t_props_generated_deserialize(hash)
+      hash_keys_matching_props = if transform_mode == :freeze
+        __t_props_generated_deserialize_frozen(hash)
+      else
+        __t_props_generated_deserialize_cloned(hash)
+      end
     rescue => e
       msg = self.class.decorator.message_with_generated_source_context(
         e,
-        :__t_props_generated_deserialize,
-        :generate_deserialize_source
+        transform_mode == :freeze ? :__t_props_generated_deserialize_frozen : :__t_props_generated_deserialize_cloned,
+        transform_mode == :freeze ? :generate_deserialize_frozen_source : :generate_deserialize_source
       )
       if msg
         raise T::Props::InvalidValueError.new(msg)
@@ -82,12 +86,21 @@ module T::Props::Serializable
         end
       end
     end
+
+    freeze if transform_mode == :freeze
   end
 
-  private def __t_props_generated_deserialize(hash)
+  private def __t_props_generated_deserialize_cloned(hash)
     # No-op; will be overridden if there are any props.
     #
     # To see the definition for class `Foo`, run `Foo.decorator.send(:generate_deserialize_source)`
+    0
+  end
+
+  private def __t_props_generated_deserialize_frozen(hash)
+    # No-op; will be overridden if there are any props.
+    #
+    # To see the definition for class `Foo`, run `Foo.decorator.send(:generate_deserialize_frozen_source)`
     0
   end
 
@@ -172,11 +185,11 @@ module T::Props::Serializable::DecoratorMethods
   def prop_dont_store?(prop); prop_rules(prop)[:dont_store]; end
   def prop_by_serialized_forms; @class.prop_by_serialized_forms; end
 
-  def from_hash(hash, strict=false)
+  def from_hash(hash, strict=false, transform_mode=:clone)
     raise ArgumentError.new("#{hash.inspect} provided to from_hash") if !(hash && hash.is_a?(Hash))
 
     i = @class.allocate
-    i.deserialize(hash, strict)
+    i.deserialize(hash, strict, transform_mode)
 
     i
   end
@@ -194,7 +207,8 @@ module T::Props::Serializable::DecoratorMethods
     res = super
     prop_by_serialized_forms[rules[:serialized_form]] = prop
     enqueue_lazy_method_definition!(:__t_props_generated_serialize) {generate_serialize_source}
-    enqueue_lazy_method_definition!(:__t_props_generated_deserialize) {generate_deserialize_source}
+    enqueue_lazy_method_definition!(:__t_props_generated_deserialize_cloned) {generate_deserialize_source}
+    enqueue_lazy_method_definition!(:__t_props_generated_deserialize_frozen) {generate_deserialize_frozen_source}
     res
   end
 
@@ -206,6 +220,17 @@ module T::Props::Serializable::DecoratorMethods
     T::Props::Private::DeserializerGenerator.generate(
       props,
       props_with_defaults || {},
+      :__t_props_generated_deserialize_cloned,
+      T::Props::Private::SerdeTransform::Mode::DESERIALIZE_CLONED
+    )
+  end
+
+  private def generate_deserialize_frozen_source
+    T::Props::Private::DeserializerGenerator.generate(
+      props,
+      props_with_defaults || {},
+      :__t_props_generated_deserialize_frozen,
+      T::Props::Private::SerdeTransform::Mode::DESERIALIZE_FROZEN
     )
   end
 
@@ -310,8 +335,8 @@ module T::Props::Serializable::ClassMethods
   # Allocate a new instance and call {#deserialize} to load a new
   # object from a hash.
   # @return [Serializable]
-  def from_hash(hash, strict=false)
-    self.decorator.from_hash(hash, strict)
+  def from_hash(hash, strict=false, transform_mode=:clone)
+    self.decorator.from_hash(hash, strict, transform_mode)
   end
 
   # Equivalent to {.from_hash} with `strict` set to true.
