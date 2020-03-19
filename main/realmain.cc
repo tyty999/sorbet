@@ -462,7 +462,8 @@ int realmain(int argc, char *argv[]) {
     } else {
         Timer timeall(logger, "wall_time");
         vector<core::FileRef> inputFiles;
-        logger->trace("Files: ");
+        logger->trace("Files: {}", opts.inputFileNames.size());
+        logger->trace("Existing file table entries: {}", gs->getFiles().size());
 
         { inputFiles = pipeline::reserveFiles(gs, opts.inputFileNames); }
 

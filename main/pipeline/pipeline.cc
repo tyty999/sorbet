@@ -422,6 +422,9 @@ void incrementStrictLevelCounter(core::StrictLevel level) {
 unique_ptr<ast::Expression> readFileWithStrictnessOverrides(unique_ptr<core::GlobalState> &gs, core::FileRef file,
                                                             const options::Options &opts,
                                                             const unique_ptr<OwnedKeyValueStore> &kvstore) {
+    if (file.id() >= gs->filesUsed()) {
+        gs->trace("Too many files. Gonna crash.");
+    }
     unique_ptr<ast::Expression> ast;
     if (file.dataAllowingUnsafe(*gs).sourceType != core::File::Type::NotYetRead) {
         return ast;
