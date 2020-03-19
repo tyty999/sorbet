@@ -35,24 +35,33 @@ module T::Props
         maybe_freeze = mode == Mode::DESERIALIZE_FROZEN ? '.freeze' : ''
 
         case type
-        when T::Types::TypedArray
+        when T::Types::TypedArray, T::Types::TypedSet
           inner = generate(type.type, mode, 'v')
           if inner.nil?
             "#{varname}.#{dup_or_freeze}"
+          elsif mode == Mode::DESERIALIZE_FROZEN && inner == 'v.freeze'
+            # Special case: we know we didn't make any `from_hash`/`deserialize`
+            # calls, so we can do everything in place.
+            #
+            # There are other cases where we could do that, but they're less
+            # common and more complex and we don't bother.
+            "#{varname}.each(&:freeze)"
+          elsif type.is_a?(T::Types::TypedSet)
+            "Set.new(#{varname}) {|v| #{inner}}#{maybe_freeze}"
           else
             "#{varname}.map {|v| #{inner}}#{maybe_freeze}"
-          end
-        when T::Types::TypedSet
-          inner = generate(type.type, mode, 'v')
-          if inner.nil?
-            "#{varname}.#{dup_or_freeze}"
-          else
-            "Set.new(#{varname}) {|v| #{inner}}#{maybe_freeze}"
           end
         when T::Types::TypedHash
           keys = generate(type.keys, mode, 'k')
           values = generate(type.values, mode, 'v')
-          if keys && values
+          if mode == Mode::DESERIALIZE_FROZEN && (keys || values) && (keys.nil? || keys == 'k.freeze') && (values.nil? || values == 'v.freeze')
+            # Special case: we know we didn't make any `from_hash`/`deserialize`
+            # calls, so we can do everything in place.
+            #
+            # There are other cases where we could do that, but they're less
+            # common and more complex and we don't bother.
+            "#{varname}.each {|k,v| #{[keys, values].compact.join('; ')}}"
+          elsif keys && values
             "#{varname}.each_with_object({}) {|(k,v),h| h[#{keys}] = #{values}}#{maybe_freeze}"
           elsif keys
             "#{varname}.transform_keys {|k| #{keys}}#{maybe_freeze}"
@@ -118,17 +127,9 @@ module T::Props
         case mode
         when Serialize
           "#{varname}.serialize(strict)"
-        when DeserializeCloned
+        when DeserializeCloned, DeserializeFrozen
           type_name = T.must(module_name(type))
-          "#{type_name}.from_hash(#{varname})"
-        when DeserializeFrozen
-          type_name = T.must(module_name(type))
-          if type.method(:from_hash).owner == T::Props::Serializable::ClassMethods &&
-              type.instance_method(:deserialize).owner == T::Props::Serializable
-            "#{type_name}.from_hash(#{varname}, false, :freeze)"
-          else
-            "T::Props::Utils.deep_freeze_object!(#{type_name}.from_hash(#{varname}))"
-          end
+          "#{type_name}.from_hash(#{varname}, opts)"
         else
           T.absurd(mode)
         end

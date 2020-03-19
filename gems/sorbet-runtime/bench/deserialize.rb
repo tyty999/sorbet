@@ -48,6 +48,16 @@ module SorbetBenchmarks
       puts "T::Props.from_hash, mostly nil input (μs/iter):"
       puts result
 
+      opts = {transform_mode: :freeze}
+      result = Benchmark.measure do
+        1_000_000.times do
+          Example.from_hash(input)
+        end
+      end
+
+      puts "T::Props.from_hash, mostly nil input (μs/iter), freeze not clone:"
+      puts result
+
       input = {
         'prop1' => 0,
         'prop2' => 0,
@@ -72,6 +82,16 @@ module SorbetBenchmarks
       end
 
       puts "T::Props.from_hash, all props set (μs/iter):"
+      puts result
+
+      opts = {transform_mode: :freeze}
+      result = Benchmark.measure do
+        1_000_000.times do
+          Example.from_hash(input, opts)
+        end
+      end
+
+      puts "T::Props.from_hash, all props set (μs/iter), freeze not clone:"
       puts result
     end
   end

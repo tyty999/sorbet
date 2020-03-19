@@ -140,7 +140,7 @@ module T::Props::PrettyPrintable::DecoratorMethods
 end
 
 module T::Props::Serializable
-  def deserialize(hash, strict = nil); end
+  def deserialize(hash, opts = nil); end
   def recursive_stringify_keys(obj); end
   def serialize(strict = nil); end
   def with(changed_props); end
@@ -154,7 +154,7 @@ end
 module T::Props::Serializable::DecoratorMethods
   def add_prop_definition(prop, rules); end
   def extra_props(instance); end
-  def from_hash(hash, strict = nil); end
+  def from_hash(hash, opts = nil); end
   def get_id(instance); end
   def inspect_instance_components(instance, multiline:, indent:); end
   def prop_by_serialized_forms; end
@@ -168,7 +168,7 @@ end
 
 module T::Props::Serializable::ClassMethods
   def from_hash!(hash); end
-  def from_hash(hash, strict = nil); end
+  def from_hash(hash, opts = nil); end
   def prop_by_serialized_forms; end
 end
 

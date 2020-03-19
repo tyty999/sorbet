@@ -99,7 +99,7 @@ module T::Props
         end
 
         <<~RUBY
-          def #{method_name}(hash)
+          def #{method_name}(hash, opts)
             found = #{stored_props.size}
             #{parts.join("\n\n")}
             found
