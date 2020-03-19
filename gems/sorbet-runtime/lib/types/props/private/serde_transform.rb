@@ -39,13 +39,8 @@ module T::Props
           inner = generate(type.type, mode, 'v')
           if inner.nil?
             "#{varname}.#{dup_or_freeze}"
-          elsif mode == Mode::DESERIALIZE_FROZEN && inner == 'v.freeze'
-            # Special case: we know we didn't make any `from_hash`/`deserialize`
-            # calls, so we can do everything in place.
-            #
-            # There are other cases where we could do that, but they're less
-            # common and more complex and we don't bother.
-            "#{varname}.each(&:freeze)"
+          elsif mode == Mode::DESERIALIZE_FROZEN && no_allocs?(inner)
+            "#{varname}.each {|v| #{inner}}"
           elsif type.is_a?(T::Types::TypedSet)
             "Set.new(#{varname}) {|v| #{inner}}#{maybe_freeze}"
           else
@@ -54,12 +49,7 @@ module T::Props
         when T::Types::TypedHash
           keys = generate(type.keys, mode, 'k')
           values = generate(type.values, mode, 'v')
-          if mode == Mode::DESERIALIZE_FROZEN && (keys || values) && (keys.nil? || keys == 'k.freeze') && (values.nil? || values == 'v.freeze')
-            # Special case: we know we didn't make any `from_hash`/`deserialize`
-            # calls, so we can do everything in place.
-            #
-            # There are other cases where we could do that, but they're less
-            # common and more complex and we don't bother.
+          if mode == Mode::DESERIALIZE_FROZEN && (keys || values) && no_allocs?(keys) && no_allocs?(values)
             "#{varname}.each {|k,v| #{[keys, values].compact.join('; ')}}"
           elsif keys && values
             "#{varname}.each_with_object({}) {|(k,v),h| h[#{keys}] = #{values}}#{maybe_freeze}"
@@ -122,6 +112,16 @@ module T::Props
         end
       end
 
+      sig {params(generated_code: T.nilable(String)).returns(T::Boolean).checked(:never)}
+      private_class_method def self.no_allocs?(generated_code)
+        # Special case: we know we didn't make any `from_hash`/`deserialize`
+        # calls, so we can do everything in place.
+        #
+        # There are other cases where we could do that, but they're less
+        # common and more complex and we don't bother.
+        generated_code.nil? || generated_code.match?(/\A\w+\.freeze\z/)
+      end
+
       sig {params(varname: String, type: Module, mode: ModeType).returns(String).checked(:never)}
       private_class_method def self.handle_serializable_subtype(varname, type, mode)
         case mode
@@ -129,7 +129,16 @@ module T::Props
           "#{varname}.serialize(strict)"
         when DeserializeCloned, DeserializeFrozen
           type_name = T.must(module_name(type))
-          "#{type_name}.from_hash(#{varname}, opts)"
+
+          # Check arity for compatibility with cases where `from_hash` has been
+          # overridden without support for `opts` (or even the old `strict` arg)
+          if T::Utils.arity(type.method(:from_hash)).abs >= 2
+            "#{type_name}.from_hash(#{varname}, opts)"
+          elsif mode == Mode::DESERIALIZE_FROZEN
+            "T::Props::Utils.deep_freeze_object!(#{type_name}.from_hash(#{varname}))"
+          else
+            "#{type_name}.from_hash(#{varname})"
+          end
         else
           T.absurd(mode)
         end

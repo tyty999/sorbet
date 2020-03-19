@@ -127,7 +127,7 @@ class Opus::Types::Test::Props::SerializableTest < Critic::Unit::UnitTest
   class CustomSerializer < T::Struct
     const :value, T.nilable(String)
 
-    def self.from_hash(hash, _arg=false)
+    def self.from_hash(hash)
       new(value: hash[:value])
     end
 
