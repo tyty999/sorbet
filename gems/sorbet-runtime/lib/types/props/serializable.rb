@@ -54,7 +54,7 @@ module T::Props::Serializable
   #     props on this instance.
   #   transform_mode: [Symbol] (:clone)
   # @return [void]
-  def deserialize(hash, opts=nil)
+  def deserialize(hash, opts=false)
     case opts
     when TrueClass, FalseClass
       # Backwards compatibility
@@ -202,7 +202,7 @@ module T::Props::Serializable::DecoratorMethods
   def prop_dont_store?(prop); prop_rules(prop)[:dont_store]; end
   def prop_by_serialized_forms; @class.prop_by_serialized_forms; end
 
-  def from_hash(hash, opts=nil)
+  def from_hash(hash, opts=false)
     raise ArgumentError.new("#{hash.inspect} provided to from_hash") if !(hash && hash.is_a?(Hash))
 
     i = @class.allocate
@@ -352,7 +352,7 @@ module T::Props::Serializable::ClassMethods
   # Allocate a new instance and call {#deserialize} to load a new
   # object from a hash.
   # @return [Serializable]
-  def from_hash(hash, opts=nil)
+  def from_hash(hash, opts=false)
     self.decorator.from_hash(hash, opts)
   end
 
