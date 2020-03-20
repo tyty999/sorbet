@@ -7,7 +7,7 @@ module T::Props::Utils
   def self.deep_clone_object(what, freeze: false)
     result = case what
     when TrueClass, FalseClass, Symbol, NilClass, Numeric, T::Enum
-      what
+      return what # No need to freeze
     when Array
       what.map {|v| deep_clone_object(v, freeze: freeze)}
     when Hash
