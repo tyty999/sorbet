@@ -6,11 +6,7 @@ module T::Props::Utils
   # types and Hashes and Arrays.
   def self.deep_clone_object(what, freeze: false)
     result = case what
-    when true
-      true
-    when false
-      false
-    when Symbol, NilClass, Numeric
+    when TrueClass, FalseClass, Symbol, NilClass, Numeric, T::Enum
       what
     when Array
       what.map {|v| deep_clone_object(v, freeze: freeze)}
@@ -23,8 +19,6 @@ module T::Props::Utils
       h
     when Regexp
       what.dup
-    when T::Enum
-      what
     else
       what.clone
     end
