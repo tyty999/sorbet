@@ -17,6 +17,8 @@ module T::Props::Utils
         h[k] = deep_clone_object(v, freeze: freeze)
       end
       h
+    when Set
+      what.class.new(what) {|v| deep_clone_object(v, freeze: freeze)}
     when Regexp
       what.dup
     else
