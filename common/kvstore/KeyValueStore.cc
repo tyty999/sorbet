@@ -76,7 +76,7 @@ u4 OwnedKeyValueStore::sessionId() const {
     return _sessionId;
 }
 
-void OwnedKeyValueStore::abort() {
+void OwnedKeyValueStore::abort() const {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
     if (txnState->txn == nullptr) {
         return;
@@ -248,7 +248,7 @@ fail:
     throw_mdb_error("failed to create transaction"sv, rc);
 }
 
-unique_ptr<KeyValueStore> OwnedKeyValueStore::abort(unique_ptr<OwnedKeyValueStore> ownedKvstore) {
+unique_ptr<KeyValueStore> OwnedKeyValueStore::abort(unique_ptr<const OwnedKeyValueStore> ownedKvstore) {
     if (ownedKvstore == nullptr) {
         return nullptr;
     }

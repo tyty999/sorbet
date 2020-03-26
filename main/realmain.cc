@@ -484,9 +484,8 @@ int realmain(int argc, char *argv[]) {
         { indexed = pipeline::index(gs, inputFiles, opts, *workers, kvstore); }
 
         {
-            // Give up database lock by destructing kvstore.
-            kvstore.reset();
-            auto unownedKvstore = cache::maybeCreateKeyValueStore(opts);
+            // Create a new transaction for writing the kvstore.
+            auto unownedKvstore = OwnedKeyValueStore::abort(move(kvstore));
             cache::maybeCacheGlobalStateAndFiles(unownedKvstore, opts, *gs, indexed);
         }
 

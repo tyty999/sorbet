@@ -171,11 +171,10 @@ void LSPIndexer::initialize(LSPFileUpdates &updates, WorkerPool &workers) {
 
     pipeline::computeFileHashes(initialGS->getFiles(), *config->logger, workers);
 
-    // We're done with the kvstore. Explicitly call reset to trigger kvstore destructor so we give up DB lock.
-    kvstore.reset();
     {
-        auto unownedKvStore = cache::maybeCreateKeyValueStore(config->opts);
-        cache::maybeCacheGlobalStateAndFiles(unownedKvStore, config->opts, *initialGS, indexed);
+        auto unownedKvstore = OwnedKeyValueStore::abort(move(kvstore));
+        // Create a new write transaction to write from this thread.
+        cache::maybeCacheGlobalStateAndFiles(unownedKvstore, config->opts, *initialGS, indexed);
     }
 
     // When inputFileNames is 0 (as in tests), indexed ends up being size 0 because we don't index payload files.

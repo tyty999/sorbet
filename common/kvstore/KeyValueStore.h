@@ -51,7 +51,8 @@ public:
  */
 class OwnedKeyValueStore final {
     const std::thread::id writerId;
-    std::unique_ptr<KeyValueStore> kvstore;
+    // Mutable so abort() can be marked `const`.
+    mutable std::unique_ptr<KeyValueStore> kvstore;
     struct TxnState;
     const std::unique_ptr<TxnState> txnState;
     mutable absl::Mutex readers_mtx;
@@ -60,7 +61,7 @@ class OwnedKeyValueStore final {
     void clear();
     void refreshMainTransaction();
     int commit();
-    void abort();
+    void abort() const;
 
 public:
     OwnedKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
@@ -78,7 +79,7 @@ public:
 
     /** Aborts all changes without writing them to disk. Returns an unowned kvstore that can be re-owned if more writes
      * are desired. If not explicitly called, OwnedKeyValueStore will implicitly abort everything in the destructor. */
-    static std::unique_ptr<KeyValueStore> abort(std::unique_ptr<OwnedKeyValueStore> ownedKvstore);
+    static std::unique_ptr<KeyValueStore> abort(std::unique_ptr<const OwnedKeyValueStore> ownedKvstore);
 
     /** Attempts to commit all changes to disk. Can fail to commit changes silently. Returns an unowned kvstore that can
      * be re-owned if more writes are desired. */
