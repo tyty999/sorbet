@@ -43,7 +43,9 @@ KeyValueStore::KeyValueStore(string version, string path, string flavor)
     if (rc != 0) {
         goto fail;
     }
-    rc = mdb_env_open(dbState->env, this->path.c_str(), 0, 0664);
+    // MDB_NOTLS specifies not to use thread local storage for transactions. Makes it possible to end transactions
+    // on a different thread than the one that created it.
+    rc = mdb_env_open(dbState->env, this->path.c_str(), MDB_NOTLS, 0664);
     if (rc != 0) {
         goto fail;
     }
