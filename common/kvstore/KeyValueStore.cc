@@ -94,7 +94,7 @@ void OwnedKeyValueStore::abort() const {
     mdb_close(kvstore->dbState->env, txnState->dbi);
 }
 
-int OwnedKeyValueStore::commit() {
+int OwnedKeyValueStore::commit() const {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
     // This should never happen.
     if (txnState->txn == nullptr) {
@@ -256,7 +256,7 @@ unique_ptr<KeyValueStore> OwnedKeyValueStore::abort(unique_ptr<const OwnedKeyVal
     if (ownedKvstore == nullptr) {
         return nullptr;
     }
-    ownedKvstore->abort();
+    ownedKvstore->commit();
     return move(ownedKvstore->kvstore);
 }
 

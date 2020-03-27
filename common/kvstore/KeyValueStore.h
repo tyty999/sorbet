@@ -60,7 +60,7 @@ class OwnedKeyValueStore final {
 
     void clear();
     void refreshMainTransaction();
-    int commit();
+    int commit() const;
     void abort() const;
 
 public:
