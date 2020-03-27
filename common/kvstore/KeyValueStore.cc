@@ -70,7 +70,6 @@ OwnedKeyValueStore::OwnedKeyValueStore(unique_ptr<KeyValueStore> kvstore)
             clear();
             writeString(VERSION_KEY, this->kvstore->version);
         }
-        return;
     }
 }
 
@@ -83,9 +82,8 @@ void OwnedKeyValueStore::abort() const {
     if (txnState->txn == nullptr) {
         return;
     }
-    for (auto &txn : txnState->readers) {
-        mdb_txn_abort(txn.second);
-    }
+    // Abort the main transaction.
+    mdb_txn_abort(txnState->txn);
     txnState->readers.clear();
     txnState->txn = nullptr;
     ENFORCE(kvstore != nullptr);
@@ -94,13 +92,13 @@ void OwnedKeyValueStore::abort() const {
 
 int OwnedKeyValueStore::commit() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
+    // This should never happen.
     if (txnState->txn == nullptr) {
+        ENFORCE(false);
         return 0;
     }
-    int rc = 0;
-    for (auto &txn : txnState->readers) {
-        rc = mdb_txn_commit(txn.second) || rc;
-    }
+    // Commit the main transaction.
+    int rc = mdb_txn_commit(txnState->txn);
     txnState->readers.clear();
     txnState->txn = nullptr;
     ENFORCE(kvstore != nullptr);
