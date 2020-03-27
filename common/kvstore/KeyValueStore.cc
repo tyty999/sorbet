@@ -21,8 +21,12 @@ struct OwnedKeyValueStore::TxnState {
 };
 
 namespace {
-static void throw_mdb_error(string_view what, int err) {
+static void print_mdb_error(string_view what, int err) {
     fmt::print(stderr, "mdb error: {}: {}\n", what, mdb_strerror(err));
+}
+
+static void throw_mdb_error(string_view what, int err) {
+    print_mdb_error(what, err);
     throw invalid_argument(string(what));
 }
 
@@ -262,7 +266,11 @@ unique_ptr<KeyValueStore> OwnedKeyValueStore::bestEffortCommit(spdlog::logger &l
         return nullptr;
     }
     Timer timeit(logger, "kvstore.bestEffortCommit");
-    ownedKvstore->commit();
+
+    int rc = ownedKvstore->commit();
+    if (rc != 0) {
+        print_mdb_error("failed to commit transaction", rc);
+    }
     return move(ownedKvstore->kvstore);
 }
 
