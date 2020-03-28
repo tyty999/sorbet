@@ -395,7 +395,7 @@ int realmain(int argc, char *argv[]) {
     vector<ast::ParsedFile> indexed;
 
     logger->trace("building initial global state");
-    unique_ptr<const ReadOnlyKeyValueStore> kvstore;
+    unique_ptr<ReadOnlyKeyValueStore> kvstore;
     {
         auto unownedKvstore = cache::maybeCreateKeyValueStore(opts);
         if (unownedKvstore != nullptr) {

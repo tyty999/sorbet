@@ -50,15 +50,14 @@ class ReadOnlyKeyValueStore {
     void createMainTransaction();
 
 protected:
-    // Mutable so close/abort/commit can be marked `const`.
-    mutable std::unique_ptr<KeyValueStore> kvstore;
+    std::unique_ptr<KeyValueStore> kvstore;
     struct TxnState;
     const std::unique_ptr<TxnState> txnState;
     mutable absl::Mutex readers_mtx;
-    // If 'true', the kvstore has the wrong db version and should not be read from.
+    // If 'true', the kvstore has the wrong db version. read() will return nullptr for every request.
     bool wrongVersion;
     u4 _sessionId;
-    virtual void abort() const;
+    virtual void abort();
 
     /**
      * Used by OwnedKeyValueStore.
@@ -77,7 +76,7 @@ public:
     std::string_view readString(std::string_view key) const;
 
     /** Closes all read transactions and relinquishes ownership of KeyValueStore. */
-    static std::unique_ptr<KeyValueStore> close(std::unique_ptr<const ReadOnlyKeyValueStore> roKvstore);
+    static std::unique_ptr<KeyValueStore> close(std::unique_ptr<ReadOnlyKeyValueStore> roKvstore);
 };
 
 /**
@@ -92,10 +91,10 @@ class OwnedKeyValueStore final : public ReadOnlyKeyValueStore {
 
     void clear();
     void refreshMainTransaction();
-    int commit() const;
+    int commit();
 
 protected:
-    void abort() const override;
+    void abort() override;
 
 public:
     OwnedKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
@@ -107,7 +106,7 @@ public:
 
     /** Aborts all changes without writing them to disk. Returns an unowned kvstore that can be re-owned if more writes
      * are desired. If not explicitly called, OwnedKeyValueStore will implicitly abort everything in the destructor. */
-    static std::unique_ptr<KeyValueStore> abort(std::unique_ptr<const OwnedKeyValueStore> ownedKvstore);
+    static std::unique_ptr<KeyValueStore> abort(std::unique_ptr<OwnedKeyValueStore> ownedKvstore);
 
     /** Attempts to commit all changes to disk. Can fail to commit changes silently. Returns an unowned kvstore that can
      * be re-owned if more writes are desired. */

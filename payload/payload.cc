@@ -14,7 +14,7 @@ constexpr string_view GLOBAL_STATE_KEY = "GlobalState"sv;
 }
 
 void createInitialGlobalState(unique_ptr<core::GlobalState> &gs, const realmain::options::Options &options,
-                              const unique_ptr<const ReadOnlyKeyValueStore> &kvstore) {
+                              const unique_ptr<ReadOnlyKeyValueStore> &kvstore) {
     if (kvstore) {
         auto maybeGsBytes = kvstore->read(GLOBAL_STATE_KEY);
         if (maybeGsBytes) {

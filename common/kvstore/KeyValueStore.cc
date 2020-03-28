@@ -136,7 +136,7 @@ u4 ReadOnlyKeyValueStore::sessionId() const {
     return _sessionId;
 }
 
-void ReadOnlyKeyValueStore::abort() const {
+void ReadOnlyKeyValueStore::abort() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
     if (txnState->txn == nullptr) {
         return;
@@ -149,7 +149,7 @@ void ReadOnlyKeyValueStore::abort() const {
     mdb_close(kvstore->dbState->env, txnState->dbi);
 }
 
-void OwnedKeyValueStore::abort() const {
+void OwnedKeyValueStore::abort() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
     if (txnState->txn == nullptr) {
         return;
@@ -162,7 +162,7 @@ void OwnedKeyValueStore::abort() const {
     ReadOnlyKeyValueStore::abort();
 }
 
-int OwnedKeyValueStore::commit() const {
+int OwnedKeyValueStore::commit() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
     // This should never happen.
     if (txnState->txn == nullptr) {
@@ -279,7 +279,7 @@ string_view ReadOnlyKeyValueStore::readString(string_view key) const {
     return result;
 }
 
-unique_ptr<KeyValueStore> ReadOnlyKeyValueStore::close(unique_ptr<const ReadOnlyKeyValueStore> roKvstore) {
+unique_ptr<KeyValueStore> ReadOnlyKeyValueStore::close(unique_ptr<ReadOnlyKeyValueStore> roKvstore) {
     if (roKvstore == nullptr) {
         return nullptr;
     }
@@ -341,7 +341,7 @@ fail:
     throw_mdb_error("failed to create transaction"sv, rc);
 }
 
-unique_ptr<KeyValueStore> OwnedKeyValueStore::abort(unique_ptr<const OwnedKeyValueStore> ownedKvstore) {
+unique_ptr<KeyValueStore> OwnedKeyValueStore::abort(unique_ptr<OwnedKeyValueStore> ownedKvstore) {
     return ReadOnlyKeyValueStore::close(move(ownedKvstore));
 }
 

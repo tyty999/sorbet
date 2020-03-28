@@ -50,7 +50,7 @@ void clearAndReplaceTimers(vector<unique_ptr<Timer>> &timers, const vector<uniqu
 } // namespace
 
 LSPIndexer::LSPIndexer(shared_ptr<const LSPConfiguration> config, unique_ptr<core::GlobalState> initialGS,
-                       unique_ptr<const ReadOnlyKeyValueStore> kvstore)
+                       unique_ptr<ReadOnlyKeyValueStore> kvstore)
     : config(config), initialGS(move(initialGS)), kvstore(move(kvstore)),
       emptyWorkers(WorkerPool::create(0, *config->logger)) {}
 
@@ -243,7 +243,7 @@ LSPFileUpdates LSPIndexer::commitEdit(SorbetWorkspaceEditParams &edit) {
 
     {
         // Explicitly null. It does not make sense to use kvstore for short-lived editor edits.
-        unique_ptr<const ReadOnlyKeyValueStore> kvstore;
+        unique_ptr<ReadOnlyKeyValueStore> kvstore;
         // Create a throwaway error queue. commitEdit may be called on two different threads, and we can't anticipate
         // which one it will be.
         initialGS->errorQueue =
