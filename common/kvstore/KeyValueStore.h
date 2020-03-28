@@ -39,7 +39,45 @@ public:
     KeyValueStore(std::string version, std::string path, std::string flavor);
     ~KeyValueStore() noexcept(false);
 
+    friend class ReadOnlyKeyValueStore;
     friend class OwnedKeyValueStore;
+};
+
+/**
+ * A database with multiple readers. All readers have a consistent view over the database.
+ */
+class ReadOnlyKeyValueStore {
+    void createMainTransaction();
+
+protected:
+    // Mutable so close/abort/commit can be marked `const`.
+    mutable std::unique_ptr<KeyValueStore> kvstore;
+    struct TxnState;
+    const std::unique_ptr<TxnState> txnState;
+    mutable absl::Mutex readers_mtx;
+    // If 'true', the kvstore has the wrong db version and should not be read from.
+    bool wrongVersion;
+    u4 _sessionId;
+    virtual void abort() const;
+
+    /**
+     * Used by OwnedKeyValueStore.
+     */
+    ReadOnlyKeyValueStore(std::unique_ptr<KeyValueStore> kvstore, std::unique_ptr<TxnState> txnState);
+
+public:
+    ReadOnlyKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
+    virtual ~ReadOnlyKeyValueStore();
+
+    /** Get the ID of the given session. Used for ENFORCEs. */
+    u4 sessionId() const;
+
+    /** returns nullptr if not found*/
+    u1 *read(std::string_view key) const;
+    std::string_view readString(std::string_view key) const;
+
+    /** Closes all read transactions and relinquishes ownership of KeyValueStore. */
+    static std::unique_ptr<KeyValueStore> close(std::unique_ptr<const ReadOnlyKeyValueStore> roKvstore);
 };
 
 /**
@@ -49,30 +87,20 @@ public:
  *
  * To write changes to disk, one must call `commit`.
  */
-class OwnedKeyValueStore final {
+class OwnedKeyValueStore final : public ReadOnlyKeyValueStore {
     const std::thread::id writerId;
-    // Mutable so abort() can be marked `const`.
-    mutable std::unique_ptr<KeyValueStore> kvstore;
-    struct TxnState;
-    const std::unique_ptr<TxnState> txnState;
-    mutable absl::Mutex readers_mtx;
-    u4 _sessionId;
 
     void clear();
     void refreshMainTransaction();
     int commit() const;
-    void abort() const;
+
+protected:
+    void abort() const override;
 
 public:
     OwnedKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
     ~OwnedKeyValueStore();
 
-    /** Get the ID of the given session. Used for ENFORCEs. */
-    u4 sessionId() const;
-
-    /** returns nullptr if not found*/
-    u1 *read(std::string_view key) const;
-    std::string_view readString(std::string_view key) const;
     void writeString(std::string_view key, std::string_view value);
     /** can only be called from owning thread */
     void write(std::string_view key, const std::vector<u1> &value);
