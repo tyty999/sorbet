@@ -52,7 +52,7 @@ TEST_P(ProtocolTest, LSPUsesCache) {
         // Release cache lock.
         lspWrapper = nullptr;
 
-        auto kvstore = make_unique<const OwnedKeyValueStore>(realmain::cache::maybeCreateKeyValueStore(*opts));
+        auto kvstore = make_unique<const ReadOnlyKeyValueStore>(realmain::cache::maybeCreateKeyValueStore(*opts));
         EXPECT_EQ(kvstore->read(updatedKey), nullptr);
 
         auto contents = kvstore->read(key);
@@ -104,7 +104,7 @@ TEST_P(ProtocolTest, LSPUsesCache) {
 
         // Release cache lock.
         lspWrapper = nullptr;
-        auto kvstore = make_unique<const OwnedKeyValueStore>(realmain::cache::maybeCreateKeyValueStore(*opts));
+        auto kvstore = make_unique<const ReadOnlyKeyValueStore>(realmain::cache::maybeCreateKeyValueStore(*opts));
         auto updatedFileData = kvstore->read(updatedKey);
         ASSERT_NE(updatedFileData, nullptr);
 

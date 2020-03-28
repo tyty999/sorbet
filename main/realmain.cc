@@ -395,11 +395,11 @@ int realmain(int argc, char *argv[]) {
     vector<ast::ParsedFile> indexed;
 
     logger->trace("building initial global state");
-    unique_ptr<const OwnedKeyValueStore> kvstore;
+    unique_ptr<const ReadOnlyKeyValueStore> kvstore;
     {
         auto unownedKvstore = cache::maybeCreateKeyValueStore(opts);
         if (unownedKvstore != nullptr) {
-            kvstore = make_unique<OwnedKeyValueStore>(move(unownedKvstore));
+            kvstore = make_unique<ReadOnlyKeyValueStore>(move(unownedKvstore));
         }
     }
     payload::createInitialGlobalState(gs, opts, kvstore);
@@ -485,7 +485,7 @@ int realmain(int argc, char *argv[]) {
 
         {
             // Create a new transaction for writing the kvstore.
-            auto unownedKvstore = OwnedKeyValueStore::abort(move(kvstore));
+            auto unownedKvstore = ReadOnlyKeyValueStore::close(move(kvstore));
             cache::maybeCacheGlobalStateAndFiles(unownedKvstore, opts, *gs, indexed);
         }
 
