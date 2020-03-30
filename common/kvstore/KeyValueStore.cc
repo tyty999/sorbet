@@ -38,11 +38,19 @@ static void throw_mdb_error(string_view what, int err) {
 }
 
 static atomic<u4> globalSessionId = 0;
+// Only one kvstore can be created per process -- the MDB env is shared. Used to enforce that we never create
+// multiple simultaneous kvstores.
+static atomic<bool> kvstoreInUse = false;
 } // namespace
 
 KeyValueStore::KeyValueStore(string version, string path, string flavor)
     : version(move(version)), path(move(path)), flavor(move(flavor)), dbState(make_unique<DBState>()) {
     ENFORCE(!this->version.empty());
+    bool expected = false;
+    if (!kvstoreInUse.compare_exchange_strong(expected, true)) {
+        throw_mdb_error("Cannot create two kvstore instances simultaneously.", 0);
+    }
+
     int rc = mdb_env_create(&dbState->env);
     if (rc != 0) {
         goto fail;
@@ -67,6 +75,10 @@ fail:
 }
 KeyValueStore::~KeyValueStore() noexcept(false) {
     mdb_env_close(dbState->env);
+    bool expected = true;
+    if (!kvstoreInUse.compare_exchange_strong(expected, false)) {
+        throw_mdb_error("Cannot create two kvstore instances simultaneously.", 0);
+    }
 }
 
 ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore)

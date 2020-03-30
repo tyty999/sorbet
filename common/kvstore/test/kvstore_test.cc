@@ -7,6 +7,7 @@
 #include "common/common.h"
 #include "common/kvstore/KeyValueStore.h"
 #include "spdlog/sinks/null_sink.h"
+#include <signal.h>
 
 using namespace std;
 using namespace sorbet;
@@ -125,6 +126,13 @@ TEST_F(KeyValueStoreTest, FlavorsHaveDifferentContents) {
     }
 }
 
+namespace {
+function<void(int)> _handler;
+void baseHandler(int signal) {
+    _handler(signal);
+}
+} // namespace
+
 TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
     {
         auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
@@ -134,15 +142,26 @@ TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
         OwnedKeyValueStore::bestEffortCommit(*logger, move(owned));
     }
     {
-        // Begin a read-only transaction.
-        auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
-        auto readOnly = make_unique<ReadOnlyKeyValueStore>(move(kvstore));
-        EXPECT_EQ(readOnly->readString("hello"), "testing");
+        // We can have only one kvstore instance per process. The following code does the following:
+        // - creates a fork that waits for a signal from the parent process that indicates that it should write
+        // - the original process creates a RO transaction prior to sending the signal to the fork
+        // - after the fork exits, we assert that multiple threads in the original process see the old version of the DB
+        // (pre-write)
+
+        // Install prior to forking to avoid a signal handling registration race.
+        bool signaled = false;
+        _handler = [&signaled](int signal) { signaled = true; };
+        // Can't use a lambda or a std::function here -- so we delegate to one via a standard function.
+        signal(SIGHUP, baseHandler);
 
         // Fork a thread that writes over the testing key.
         // We _have_ to fork; lmdb makes assumptions about how it is used within a single process.
-        const int pid = fork();
-        if (pid == 0) {
+        const int childPid = fork();
+        if (childPid == 0) {
+            // Wait for signal.
+            while (!signaled) {
+            }
+
             // Child -- needs to exit the process at the end to avoid running the rest of the tests.
             auto kvstoreWrite = make_unique<KeyValueStore>("1", directory, "vanilla");
             auto owned = make_unique<OwnedKeyValueStore>(move(kvstoreWrite));
@@ -151,8 +170,16 @@ TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
             OwnedKeyValueStore::bestEffortCommit(*logger, move(owned));
             exit(testing::Test::HasFailure());
         } else {
+            // Begin a read-only transaction.
+            auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
+            auto readOnly = make_unique<ReadOnlyKeyValueStore>(move(kvstore));
+            EXPECT_EQ(readOnly->readString("hello"), "testing");
+
+            // Send signal to child process indicating that it should commence writing.
+            kill(childPid, SIGHUP);
+
             // Wait for write in other process to complete before proceeding.
-            ASSERT_EQ(0, wait_for_child_fork(pid));
+            ASSERT_EQ(0, wait_for_child_fork(childPid));
 
             // The write in the other process should have no bearing on reads in this process.
             EXPECT_EQ(readOnly->readString("hello"), "testing");
