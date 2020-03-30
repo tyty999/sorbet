@@ -51,13 +51,18 @@ class ReadOnlyKeyValueStore {
 
 protected:
     std::unique_ptr<KeyValueStore> kvstore;
+    struct Txn;
     struct TxnState;
     const std::unique_ptr<TxnState> txnState;
-    mutable absl::Mutex readers_mtx;
     // If 'true', the kvstore has the wrong db version. read() will return nullptr for every request.
     bool wrongVersion;
     u4 _sessionId;
     virtual void abort();
+
+    /**
+     * Get the transaction for the current thread.
+     */
+    virtual Txn getThreadTxn() const;
 
     /**
      * Used by OwnedKeyValueStore.
@@ -88,6 +93,8 @@ public:
  */
 class OwnedKeyValueStore final : public ReadOnlyKeyValueStore {
     const std::thread::id writerId;
+    struct ReadTxnState;
+    const std::unique_ptr<ReadTxnState> readTxnState;
 
     void clear();
     void refreshMainTransaction();
@@ -95,6 +102,11 @@ class OwnedKeyValueStore final : public ReadOnlyKeyValueStore {
 
 protected:
     void abort() override;
+
+    /**
+     * Get the transaction for the current thread. Overridden so that the writer thread uses the write transaction.
+     */
+    Txn getThreadTxn() const override;
 
 public:
     OwnedKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
