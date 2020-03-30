@@ -87,11 +87,12 @@ ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore)
     wrongVersion = readString(VERSION_KEY) != this->kvstore->version;
 }
 
+// Constructor used by OwnedKeyValueStore. Defers initialization to txnState.
 ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore, unique_ptr<TxnState> txnState)
     : kvstore(move(kvstore)), txnState(move(txnState)), wrongVersion(false) {}
 
-ReadOnlyKeyValueStore::Txn ReadOnlyKeyValueStore::getThreadTxn() const {
-    return {txnState->txn};
+ReadOnlyKeyValueStore::~ReadOnlyKeyValueStore() {
+    abort();
 }
 
 void ReadOnlyKeyValueStore::createMainTransaction() {
@@ -118,19 +119,6 @@ fail:
     throw_mdb_error("failed to create transaction"sv, rc);
 }
 
-OwnedKeyValueStore::OwnedKeyValueStore(unique_ptr<KeyValueStore> kvstore)
-    : ReadOnlyKeyValueStore(move(kvstore), make_unique<TxnState>()), writerId(this_thread::get_id()),
-      readTxnState(make_unique<ReadTxnState>()) {
-    refreshMainTransaction();
-    {
-        auto dbVersion = readString(VERSION_KEY);
-        if (dbVersion != this->kvstore->version) {
-            clear();
-            writeString(VERSION_KEY, this->kvstore->version);
-        }
-    }
-}
-
 u4 ReadOnlyKeyValueStore::sessionId() const {
     return _sessionId;
 }
@@ -145,6 +133,65 @@ void ReadOnlyKeyValueStore::abort() {
     txnState->txn = nullptr;
     ENFORCE(kvstore != nullptr);
     mdb_close(kvstore->dbState->env, txnState->dbi);
+}
+
+ReadOnlyKeyValueStore::Txn ReadOnlyKeyValueStore::getThreadTxn() const {
+    return {txnState->txn};
+}
+
+u1 *ReadOnlyKeyValueStore::read(string_view key) const {
+    if (wrongVersion) {
+        return nullptr;
+    }
+    MDB_txn *txn = getThreadTxn().txn;
+    MDB_val kv;
+    kv.mv_size = key.size();
+    kv.mv_data = (void *)key.data();
+    MDB_val data;
+    int rc = mdb_get(txn, txnState->dbi, &kv, &data);
+    if (rc != 0) {
+        if (rc == MDB_NOTFOUND) {
+            return nullptr;
+        }
+        throw_mdb_error("failed read from the database"sv, rc);
+    }
+    return (u1 *)data.mv_data;
+}
+
+string_view ReadOnlyKeyValueStore::readString(string_view key) const {
+    auto rawData = read(key);
+    if (!rawData) {
+        return string_view();
+    }
+    size_t sz;
+    memcpy(&sz, rawData, sizeof(sz));
+    string_view result(((const char *)rawData) + sizeof(sz), sz);
+    return result;
+}
+
+unique_ptr<KeyValueStore> ReadOnlyKeyValueStore::close(unique_ptr<ReadOnlyKeyValueStore> roKvstore) {
+    if (roKvstore == nullptr) {
+        return nullptr;
+    }
+    roKvstore->abort();
+    return move(roKvstore->kvstore);
+}
+
+OwnedKeyValueStore::OwnedKeyValueStore(unique_ptr<KeyValueStore> kvstore)
+    : ReadOnlyKeyValueStore(move(kvstore), make_unique<TxnState>()), writerId(this_thread::get_id()),
+      readTxnState(make_unique<ReadTxnState>()) {
+    refreshMainTransaction();
+    {
+        auto dbVersion = readString(VERSION_KEY);
+        if (dbVersion != this->kvstore->version) {
+            clear();
+            writeString(VERSION_KEY, this->kvstore->version);
+        }
+    }
+}
+
+OwnedKeyValueStore::~OwnedKeyValueStore() {
+    abort();
 }
 
 void OwnedKeyValueStore::abort() {
@@ -187,14 +234,6 @@ int OwnedKeyValueStore::commit() {
     return rc;
 }
 
-ReadOnlyKeyValueStore::~ReadOnlyKeyValueStore() {
-    abort();
-}
-
-OwnedKeyValueStore::~OwnedKeyValueStore() {
-    abort();
-}
-
 void OwnedKeyValueStore::write(string_view key, const vector<u1> &value) {
     if (writerId != this_thread::get_id()) {
         throw_mdb_error("KeyValueStore can only write from thread that created it"sv, 0);
@@ -213,23 +252,12 @@ void OwnedKeyValueStore::write(string_view key, const vector<u1> &value) {
     }
 }
 
-u1 *ReadOnlyKeyValueStore::read(string_view key) const {
-    if (wrongVersion) {
-        return nullptr;
-    }
-    MDB_txn *txn = getThreadTxn().txn;
-    MDB_val kv;
-    kv.mv_size = key.size();
-    kv.mv_data = (void *)key.data();
-    MDB_val data;
-    int rc = mdb_get(txn, txnState->dbi, &kv, &data);
-    if (rc != 0) {
-        if (rc == MDB_NOTFOUND) {
-            return nullptr;
-        }
-        throw_mdb_error("failed read from the database"sv, rc);
-    }
-    return (u1 *)data.mv_data;
+void OwnedKeyValueStore::writeString(string_view key, string_view value) {
+    vector<u1> rawData(value.size() + sizeof(size_t));
+    size_t sz = value.size();
+    memcpy(rawData.data(), &sz, sizeof(sz));
+    memcpy(rawData.data() + sizeof(sz), value.data(), sz);
+    write(key, move(rawData));
 }
 
 void OwnedKeyValueStore::clear() {
@@ -251,39 +279,12 @@ fail:
     throw_mdb_error("failed to clear the database"sv, rc);
 }
 
-string_view ReadOnlyKeyValueStore::readString(string_view key) const {
-    auto rawData = read(key);
-    if (!rawData) {
-        return string_view();
-    }
-    size_t sz;
-    memcpy(&sz, rawData, sizeof(sz));
-    string_view result(((const char *)rawData) + sizeof(sz), sz);
-    return result;
-}
-
-unique_ptr<KeyValueStore> ReadOnlyKeyValueStore::close(unique_ptr<ReadOnlyKeyValueStore> roKvstore) {
-    if (roKvstore == nullptr) {
-        return nullptr;
-    }
-    roKvstore->abort();
-    return move(roKvstore->kvstore);
-}
-
 ReadOnlyKeyValueStore::Txn OwnedKeyValueStore::getThreadTxn() const {
     if (this_thread::get_id() == writerId) {
         return {txnState->txn};
     } else {
         return {readTxnState->readTxn};
     }
-}
-
-void OwnedKeyValueStore::writeString(string_view key, string_view value) {
-    vector<u1> rawData(value.size() + sizeof(size_t));
-    size_t sz = value.size();
-    memcpy(rawData.data(), &sz, sizeof(sz));
-    memcpy(rawData.data() + sizeof(sz), value.data(), sz);
-    write(key, move(rawData));
 }
 
 void OwnedKeyValueStore::refreshMainTransaction() {
@@ -336,6 +337,7 @@ fail:
 }
 
 unique_ptr<KeyValueStore> OwnedKeyValueStore::abort(unique_ptr<OwnedKeyValueStore> ownedKvstore) {
+    // `Close` defers to the virtual abort method, which does the right thing.
     return ReadOnlyKeyValueStore::close(move(ownedKvstore));
 }
 
