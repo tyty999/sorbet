@@ -9,7 +9,7 @@ namespace sorbet {
 constexpr string_view VERSION_KEY = "DB_FORMAT_VERSION"sv;
 constexpr size_t MAX_DB_SIZE_BYTES =
     2L * 1024 * 1024 * 1024; // 2G. This is both maximum fs db size and max virtual memory usage.
-struct KeyValueStore::DBState {
+struct KeyValueStore::DBEnv {
     MDB_env *env;
 };
 
@@ -17,14 +17,8 @@ struct ReadOnlyKeyValueStore::Txn {
     MDB_txn *txn;
 };
 
-struct ReadOnlyKeyValueStore::TxnState {
+struct ReadOnlyKeyValueStore::Dbi {
     MDB_dbi dbi;
-    // The main transaction.
-    MDB_txn *txn;
-};
-
-struct OwnedKeyValueStore::ReadTxnState {
-    MDB_txn *readTxn;
 };
 
 namespace {
@@ -44,28 +38,28 @@ static atomic<bool> kvstoreInUse = false;
 } // namespace
 
 KeyValueStore::KeyValueStore(string version, string path, string flavor)
-    : version(move(version)), path(move(path)), flavor(move(flavor)), dbState(make_unique<DBState>()) {
+    : version(move(version)), path(move(path)), flavor(move(flavor)), dbEnv(make_unique<DBEnv>()) {
     ENFORCE(!this->version.empty());
     bool expected = false;
     if (!kvstoreInUse.compare_exchange_strong(expected, true)) {
         throw_mdb_error("Cannot create two kvstore instances simultaneously.", 0);
     }
 
-    int rc = mdb_env_create(&dbState->env);
+    int rc = mdb_env_create(&dbEnv->env);
     if (rc != 0) {
         goto fail;
     }
-    rc = mdb_env_set_mapsize(dbState->env, MAX_DB_SIZE_BYTES);
+    rc = mdb_env_set_mapsize(dbEnv->env, MAX_DB_SIZE_BYTES);
     if (rc != 0) {
         goto fail;
     }
-    rc = mdb_env_set_maxdbs(dbState->env, 3);
+    rc = mdb_env_set_maxdbs(dbEnv->env, 3);
     if (rc != 0) {
         goto fail;
     }
     // MDB_NOTLS specifies not to use thread local storage for transactions. Makes it possible to share read-only
     // transactions between threads.
-    rc = mdb_env_open(dbState->env, this->path.c_str(), MDB_NOTLS, 0664);
+    rc = mdb_env_open(dbEnv->env, this->path.c_str(), MDB_NOTLS, 0664);
     if (rc != 0) {
         goto fail;
     }
@@ -74,22 +68,24 @@ fail:
     throw_mdb_error("failed to create database"sv, rc);
 }
 KeyValueStore::~KeyValueStore() noexcept(false) {
-    mdb_env_close(dbState->env);
+    mdb_env_close(dbEnv->env);
     bool expected = true;
     if (!kvstoreInUse.compare_exchange_strong(expected, false)) {
         throw_mdb_error("Cannot create two kvstore instances simultaneously.", 0);
     }
 }
 
+ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore, bool disableInit)
+    : kvstore(move(kvstore)), dbi(make_unique<Dbi>()), mainTxn(make_unique<Txn>()), wrongVersion(false), _sessionId(0) {
+    // This parameter should always be true; I just needed an extra arg to disambiguate.
+    ENFORCE(disableInit);
+}
+
 ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore)
-    : kvstore(move(kvstore)), txnState(make_unique<TxnState>()), wrongVersion(false), _sessionId(0) {
+    : kvstore(move(kvstore)), dbi(make_unique<Dbi>()), mainTxn(make_unique<Txn>()), wrongVersion(false), _sessionId(0) {
     createMainTransaction();
     wrongVersion = readString(VERSION_KEY) != this->kvstore->version;
 }
-
-// Constructor used by OwnedKeyValueStore. Defers initialization to txnState.
-ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore, unique_ptr<TxnState> txnState)
-    : kvstore(move(kvstore)), txnState(move(txnState)), wrongVersion(false) {}
 
 ReadOnlyKeyValueStore::~ReadOnlyKeyValueStore() {
     abort();
@@ -97,13 +93,13 @@ ReadOnlyKeyValueStore::~ReadOnlyKeyValueStore() {
 
 void ReadOnlyKeyValueStore::createMainTransaction() {
     // This function should not be called twice.
-    ENFORCE(txnState->txn == nullptr);
-    auto &dbState = *kvstore->dbState;
-    auto rc = mdb_txn_begin(dbState.env, nullptr, MDB_RDONLY, &txnState->txn);
+    ENFORCE(mainTxn->txn == nullptr);
+    auto &dbEnv = *kvstore->dbEnv;
+    auto rc = mdb_txn_begin(dbEnv.env, nullptr, MDB_RDONLY, &mainTxn->txn);
     if (rc != 0) {
         goto fail;
     }
-    rc = mdb_dbi_open(txnState->txn, kvstore->flavor.c_str(), 0, &txnState->dbi);
+    rc = mdb_dbi_open(mainTxn->txn, kvstore->flavor.c_str(), 0, &dbi->dbi);
     if (rc != 0) {
         // DB doesn't exist. Act as if it is the wrong version.
         if (rc == MDB_NOTFOUND) {
@@ -112,6 +108,7 @@ void ReadOnlyKeyValueStore::createMainTransaction() {
         }
         goto fail;
     }
+
     // Increment session. Used for debug assertions.
     _sessionId = globalSessionId++;
     return;
@@ -125,18 +122,18 @@ u4 ReadOnlyKeyValueStore::sessionId() const {
 
 void ReadOnlyKeyValueStore::abort() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
-    if (txnState->txn == nullptr) {
+    if (mainTxn->txn == nullptr) {
         return;
     }
     // Abort the main transaction.
-    mdb_txn_abort(txnState->txn);
-    txnState->txn = nullptr;
+    mdb_txn_abort(mainTxn->txn);
+    mainTxn->txn = nullptr;
     ENFORCE(kvstore != nullptr);
-    mdb_close(kvstore->dbState->env, txnState->dbi);
+    mdb_close(kvstore->dbEnv->env, dbi->dbi);
 }
 
-ReadOnlyKeyValueStore::Txn ReadOnlyKeyValueStore::getThreadTxn() const {
-    return {txnState->txn};
+ReadOnlyKeyValueStore::Txn &ReadOnlyKeyValueStore::getThreadTxn() const {
+    return *mainTxn;
 }
 
 u1 *ReadOnlyKeyValueStore::read(string_view key) const {
@@ -148,7 +145,7 @@ u1 *ReadOnlyKeyValueStore::read(string_view key) const {
     kv.mv_size = key.size();
     kv.mv_data = (void *)key.data();
     MDB_val data;
-    int rc = mdb_get(txn, txnState->dbi, &kv, &data);
+    int rc = mdb_get(txn, dbi->dbi, &kv, &data);
     if (rc != 0) {
         if (rc == MDB_NOTFOUND) {
             return nullptr;
@@ -178,9 +175,8 @@ unique_ptr<KeyValueStore> ReadOnlyKeyValueStore::close(unique_ptr<ReadOnlyKeyVal
 }
 
 OwnedKeyValueStore::OwnedKeyValueStore(unique_ptr<KeyValueStore> kvstore)
-    : ReadOnlyKeyValueStore(move(kvstore), make_unique<TxnState>()), writerId(this_thread::get_id()),
-      readTxnState(make_unique<ReadTxnState>()) {
-    refreshMainTransaction();
+    : ReadOnlyKeyValueStore(move(kvstore), true), writerId(this_thread::get_id()), readTxn(make_unique<Txn>()) {
+    createMainTransaction();
     {
         auto dbVersion = readString(VERSION_KEY);
         if (dbVersion != this->kvstore->version) {
@@ -196,7 +192,7 @@ OwnedKeyValueStore::~OwnedKeyValueStore() {
 
 void OwnedKeyValueStore::abort() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
-    if (txnState->txn == nullptr) {
+    if (mainTxn->txn == nullptr) {
         return;
     }
     // If other threads try to abort or commit a write transaction, we will end up in a deadlock the next time a write
@@ -204,15 +200,15 @@ void OwnedKeyValueStore::abort() {
     if (this_thread::get_id() != writerId) {
         throw_mdb_error("KeyValueStore can only write from thread that created it"sv, 0);
     }
-    mdb_txn_abort(readTxnState->readTxn);
-    readTxnState->readTxn = nullptr;
+    mdb_txn_abort(readTxn->txn);
+    readTxn->txn = nullptr;
     ReadOnlyKeyValueStore::abort();
 }
 
 int OwnedKeyValueStore::commit() {
     // Note: txn being null indicates that the transaction has already ended, perhaps due to a commit.
     // This should never happen.
-    if (txnState->txn == nullptr) {
+    if (mainTxn->txn == nullptr) {
         ENFORCE(false);
         return 0;
     }
@@ -223,14 +219,14 @@ int OwnedKeyValueStore::commit() {
     }
 
     // Commit the read-only transaction.
-    mdb_txn_commit(readTxnState->readTxn);
-    readTxnState->readTxn = nullptr;
+    mdb_txn_commit(readTxn->txn);
+    readTxn->txn = nullptr;
 
     // Commit the main transaction.
-    int rc = mdb_txn_commit(txnState->txn);
-    txnState->txn = nullptr;
+    int rc = mdb_txn_commit(mainTxn->txn);
+    mainTxn->txn = nullptr;
     ENFORCE(kvstore != nullptr);
-    mdb_close(kvstore->dbState->env, txnState->dbi);
+    mdb_close(kvstore->dbEnv->env, dbi->dbi);
     return rc;
 }
 
@@ -246,7 +242,7 @@ void OwnedKeyValueStore::write(string_view key, const vector<u1> &value) {
     dv.mv_size = value.size();
     dv.mv_data = (void *)value.data();
 
-    int rc = mdb_put(txnState->txn, txnState->dbi, &kv, &dv, 0);
+    int rc = mdb_put(mainTxn->txn, dbi->dbi, &kv, &dv, 0);
     if (rc != 0) {
         throw_mdb_error("failed write into database"sv, rc);
     }
@@ -265,7 +261,7 @@ void OwnedKeyValueStore::clear() {
         throw_mdb_error("KeyValueStore can only write from thread that created it"sv, 0);
     }
 
-    int rc = mdb_drop(txnState->txn, txnState->dbi, 0);
+    int rc = mdb_drop(mainTxn->txn, dbi->dbi, 0);
     if (rc != 0) {
         goto fail;
     }
@@ -273,31 +269,31 @@ void OwnedKeyValueStore::clear() {
     if (rc != 0) {
         goto fail;
     }
-    refreshMainTransaction();
+    createMainTransaction();
     return;
 fail:
     throw_mdb_error("failed to clear the database"sv, rc);
 }
 
-ReadOnlyKeyValueStore::Txn OwnedKeyValueStore::getThreadTxn() const {
+ReadOnlyKeyValueStore::Txn &OwnedKeyValueStore::getThreadTxn() const {
     if (this_thread::get_id() == writerId) {
-        return {txnState->txn};
+        return *mainTxn;
     } else {
-        return {readTxnState->readTxn};
+        return *readTxn;
     }
 }
 
-void OwnedKeyValueStore::refreshMainTransaction() {
+void OwnedKeyValueStore::createMainTransaction() {
     if (writerId != this_thread::get_id()) {
         throw_mdb_error("KeyValueStore can only write from thread that created it"sv, 0);
     }
 
-    auto &dbState = *kvstore->dbState;
-    auto rc = mdb_txn_begin(dbState.env, nullptr, 0, &txnState->txn);
+    auto &dbEnv = *kvstore->dbEnv;
+    auto rc = mdb_txn_begin(dbEnv.env, nullptr, 0, &mainTxn->txn);
     if (rc != 0) {
         goto fail;
     }
-    rc = mdb_dbi_open(txnState->txn, kvstore->flavor.c_str(), MDB_CREATE, &txnState->dbi);
+    rc = mdb_dbi_open(mainTxn->txn, kvstore->flavor.c_str(), MDB_CREATE, &dbi->dbi);
     if (rc != 0) {
         goto fail;
     }
@@ -314,19 +310,19 @@ void OwnedKeyValueStore::refreshMainTransaction() {
     // transactions.
     //
     // So we commit immediately to force the dbi into the shared space
-    // so that readers can use it, and then re-open the transaction
+    // so that the reader transaction can use it, and then re-open the transaction
     // for future writes.
-    rc = mdb_txn_commit(txnState->txn);
+    rc = mdb_txn_commit(mainTxn->txn);
     if (rc != 0) {
         goto fail;
     }
-    rc = mdb_txn_begin(dbState.env, nullptr, 0, &txnState->txn);
+    rc = mdb_txn_begin(dbEnv.env, nullptr, 0, &mainTxn->txn);
     if (rc != 0) {
         goto fail;
     }
 
     // Create the read-only transaction
-    rc = mdb_txn_begin(kvstore->dbState->env, nullptr, MDB_RDONLY, &readTxnState->readTxn);
+    rc = mdb_txn_begin(kvstore->dbEnv->env, nullptr, MDB_RDONLY, &readTxn->txn);
     if (rc != 0) {
         goto fail;
     }

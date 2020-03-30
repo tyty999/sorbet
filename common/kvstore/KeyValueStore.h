@@ -15,8 +15,8 @@ class KeyValueStore final {
     const std::string version;
     const std::string path;
     const std::string flavor;
-    struct DBState;
-    const std::unique_ptr<DBState> dbState;
+    struct DBEnv;
+    const std::unique_ptr<DBEnv> dbEnv;
 
 public:
     /**
@@ -47,27 +47,28 @@ public:
  * A database with multiple readers. All readers have a consistent view over the database.
  */
 class ReadOnlyKeyValueStore {
-    void createMainTransaction();
-
 protected:
     std::unique_ptr<KeyValueStore> kvstore;
+    struct Dbi;
     struct Txn;
-    struct TxnState;
-    const std::unique_ptr<TxnState> txnState;
+    const std::unique_ptr<Dbi> dbi;
+    const std::unique_ptr<Txn> mainTxn;
     // If 'true', the kvstore has the wrong db version. read() will return nullptr for every request.
     bool wrongVersion;
     u4 _sessionId;
+
+    /** Aborts all pending transactions. */
     virtual void abort();
 
-    /**
-     * Get the transaction for the current thread.
-     */
-    virtual Txn getThreadTxn() const;
+    /** Initializes txnState. */
+    virtual void createMainTransaction();
 
-    /**
-     * Used by OwnedKeyValueStore.
-     */
-    ReadOnlyKeyValueStore(std::unique_ptr<KeyValueStore> kvstore, std::unique_ptr<TxnState> txnState);
+    /** Get the transaction for the current thread. */
+    virtual Txn &getThreadTxn() const;
+
+    /** Used by child classes to _disable_ transaction initialization so that they may initialize transactions
+     * themselves. */
+    ReadOnlyKeyValueStore(std::unique_ptr<KeyValueStore> kvstore, bool disableInit);
 
 public:
     ReadOnlyKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
@@ -80,7 +81,7 @@ public:
     u1 *read(std::string_view key) const;
     std::string_view readString(std::string_view key) const;
 
-    /** Closes all read transactions and relinquishes ownership of KeyValueStore. */
+    /** Closes all transactions and relinquishes ownership of KeyValueStore. */
     static std::unique_ptr<KeyValueStore> close(std::unique_ptr<ReadOnlyKeyValueStore> roKvstore);
 };
 
@@ -93,20 +94,25 @@ public:
  */
 class OwnedKeyValueStore final : public ReadOnlyKeyValueStore {
     const std::thread::id writerId;
-    struct ReadTxnState;
-    const std::unique_ptr<ReadTxnState> readTxnState;
+    const std::unique_ptr<Txn> readTxn;
 
+    /** Wipes the data store on disk. */
     void clear();
-    void refreshMainTransaction();
+
+    /** Commits written changes to disk. */
     int commit();
 
 protected:
+    /** Closes all transactions without committing changes to disk. */
     void abort() override;
 
+    /** Overrides base class to create a write transaction for the owner. */
+    void createMainTransaction() override;
+
     /**
-     * Get the transaction for the current thread. Overridden so that the writer thread uses the write transaction.
+     * Get the transaction for the current thread. Overridden so that the owning thread uses the write transaction.
      */
-    Txn getThreadTxn() const override;
+    Txn &getThreadTxn() const override;
 
 public:
     OwnedKeyValueStore(std::unique_ptr<KeyValueStore> kvstore);
@@ -117,11 +123,12 @@ public:
     void write(std::string_view key, const std::vector<u1> &value);
 
     /** Aborts all changes without writing them to disk. Returns an unowned kvstore that can be re-owned if more writes
-     * are desired. If not explicitly called, OwnedKeyValueStore will implicitly abort everything in the destructor. */
+     * are desired. If not explicitly called, OwnedKeyValueStore will implicitly abort everything in the destructor.
+     * Must be called by owning thread. */
     static std::unique_ptr<KeyValueStore> abort(std::unique_ptr<OwnedKeyValueStore> ownedKvstore);
 
     /** Attempts to commit all changes to disk. Can fail to commit changes silently. Returns an unowned kvstore that can
-     * be re-owned if more writes are desired. */
+     * be re-owned if more writes are desired. Must be called by owning thread. */
     static std::unique_ptr<KeyValueStore> bestEffortCommit(spdlog::logger &logger,
                                                            std::unique_ptr<OwnedKeyValueStore> ownedKvstore);
 };
