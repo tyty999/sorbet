@@ -5,7 +5,9 @@
 using namespace std;
 namespace sorbet {
 struct KeyValueStore::DBState {};
-struct OwnedKeyValueStore::TxnState {};
+struct ReadOnlyKeyValueStore::Txn {};
+struct ReadOnlyKeyValueStore::TxnState {};
+struct OwnedKeyValueStore::ReadTxnState {};
 
 [[noreturn]] static void throw_mdb_error(string_view what, int err) {
     fmt::print(stderr, "mdb error: {}: {}\n", what, "");
@@ -20,11 +22,32 @@ KeyValueStore::~KeyValueStore() noexcept(false) {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
-OwnedKeyValueStore::OwnedKeyValueStore(unique_ptr<KeyValueStore> kvstore) : kvstore(move(kvstore)) {
+ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore) : kvstore(move(kvstore)) {
+    throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
+}
+
+ReadOnlyKeyValueStore::ReadOnlyKeyValueStore(unique_ptr<KeyValueStore> kvstore, unique_ptr<TxnState> txnState)
+    : ReadOnlyKeyValueStore(move(kvstore)) {}
+
+ReadOnlyKeyValueStore::~ReadOnlyKeyValueStore() {}
+
+void ReadOnlyKeyValueStore::ReadOnlyKeyValueStore::abort() {
+    throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
+}
+
+ReadOnlyKeyValueStore::Txn ReadOnlyKeyValueStore::getThreadTxn() const {
+    throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
+}
+
+OwnedKeyValueStore::OwnedKeyValueStore(unique_ptr<KeyValueStore> kvstore) : ReadOnlyKeyValueStore(move(kvstore)) {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
 OwnedKeyValueStore::~OwnedKeyValueStore() {
+    throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
+}
+
+ReadOnlyKeyValueStore::Txn OwnedKeyValueStore::getThreadTxn() const {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
@@ -40,7 +63,7 @@ void OwnedKeyValueStore::write(string_view key, const vector<u1> &value) {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
-u1 *OwnedKeyValueStore::read(string_view key) const {
+u1 *ReadOnlyKeyValueStore::read(string_view key) const {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
@@ -48,7 +71,7 @@ void OwnedKeyValueStore::clear() {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
-string_view OwnedKeyValueStore::readString(string_view key) const {
+string_view ReadOnlyKeyValueStore::readString(string_view key) const {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
@@ -60,8 +83,12 @@ void OwnedKeyValueStore::refreshMainTransaction() {
     throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
-u4 OwnedKeyValueStore::sessionId() const {
+u4 ReadOnlyKeyValueStore::sessionId() const {
     return 0;
+}
+
+unique_ptr<KeyValueStore> ReadOnlyKeyValueStore::close(unique_ptr<ReadOnlyKeyValueStore> roKvstore) {
+    throw_mdb_error("creating databases isn't supported on emscripten"sv, 0);
 }
 
 unique_ptr<KeyValueStore> OwnedKeyValueStore::bestEffortCommit(spdlog::logger &logger,

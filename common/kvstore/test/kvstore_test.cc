@@ -3,7 +3,6 @@
 #include "spdlog/spdlog.h"
 // has to go above null_sink.h; this comment prevents reordering.
 #include "absl/strings/str_split.h" // For StripAsciiWhitespace
-#include "absl/synchronization/notification.h"
 #include "common/FileOps.h"
 #include "common/common.h"
 #include "common/kvstore/KeyValueStore.h"
@@ -128,7 +127,6 @@ TEST_F(KeyValueStoreTest, FlavorsHaveDifferentContents) {
 
 TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
     {
-        cout << "PHASE 1\n";
         auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
         auto owned = make_unique<OwnedKeyValueStore>(move(kvstore));
         owned->writeString("hello", "testing");
@@ -136,8 +134,6 @@ TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
         OwnedKeyValueStore::bestEffortCommit(*logger, move(owned));
     }
     {
-        cout << "PHASE 2\n";
-
         // Begin a read-only transaction.
         auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
         auto readOnly = make_unique<ReadOnlyKeyValueStore>(move(kvstore));
@@ -161,8 +157,7 @@ TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
             // The write in the other process should have no bearing on reads in this process.
             EXPECT_EQ(readOnly->readString("hello"), "testing");
 
-            // Each thread uses a different read transaction nested under the main transaction.
-            // Verify that threads see the same version as their parent transaction.
+            // Verify that worker threads see the same data.
             {
                 // Destructor for return value waits for thread to complete.
                 runInAThread("workerThread", [&readOnly]() {
