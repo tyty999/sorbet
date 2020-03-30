@@ -3,6 +3,7 @@
 #include "spdlog/spdlog.h"
 // has to go above null_sink.h; this comment prevents reordering.
 #include "absl/strings/str_split.h" // For StripAsciiWhitespace
+#include "absl/synchronization/notification.h"
 #include "common/FileOps.h"
 #include "common/common.h"
 #include "common/kvstore/KeyValueStore.h"
@@ -27,7 +28,23 @@ protected:
     void TearDown() override {
         exec(fmt::format("rm -r {}", directory));
     }
+
+    // Inspired by https://github.com/google/googletest/issues/1153#issuecomment-428247477
+    int wait_for_child_fork(int pid) {
+        int status;
+        if (0 > waitpid(pid, &status, 0)) {
+            std::cerr << "[----------]  Waitpid error!" << std::endl;
+            return -1;
+        }
+        if (WIFEXITED(status)) {
+            return WEXITSTATUS(status);
+        } else {
+            std::cerr << "[----------]  Non-normal exit from child!" << std::endl;
+            return -2;
+        }
+    }
 };
+
 } // namespace
 
 TEST_F(KeyValueStoreTest, CommitsChangesToDisk) {
@@ -106,5 +123,54 @@ TEST_F(KeyValueStoreTest, FlavorsHaveDifferentContents) {
         auto kvstore = make_unique<KeyValueStore>("1", directory, "coldbrewcoffeewithchocolateflakes");
         auto owned = make_unique<OwnedKeyValueStore>(move(kvstore));
         EXPECT_EQ(owned->readString("hello"), "");
+    }
+}
+
+TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
+    {
+        cout << "PHASE 1\n";
+        auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
+        auto owned = make_unique<OwnedKeyValueStore>(move(kvstore));
+        owned->writeString("hello", "testing");
+        EXPECT_EQ(owned->readString("hello"), "testing");
+        OwnedKeyValueStore::bestEffortCommit(*logger, move(owned));
+    }
+    {
+        cout << "PHASE 2\n";
+
+        // Begin a read-only transaction.
+        auto kvstore = make_unique<KeyValueStore>("1", directory, "vanilla");
+        auto readOnly = make_unique<ReadOnlyKeyValueStore>(move(kvstore));
+        EXPECT_EQ(readOnly->readString("hello"), "testing");
+
+        // Fork a thread that writes over the testing key.
+        // We _have_ to fork; lmdb makes assumptions about how it is used within a single process.
+        const int pid = fork();
+        if (pid == 0) {
+            // Child -- needs to exit the process at the end to avoid running the rest of the tests.
+            auto kvstoreWrite = make_unique<KeyValueStore>("1", directory, "vanilla");
+            auto owned = make_unique<OwnedKeyValueStore>(move(kvstoreWrite));
+            EXPECT_EQ(owned->readString("hello"), "testing");
+            owned->writeString("hello", "overwritten");
+            OwnedKeyValueStore::bestEffortCommit(*logger, move(owned));
+            exit(testing::Test::HasFailure());
+        } else {
+            // Wait for write in other process to complete before proceeding.
+            ASSERT_EQ(0, wait_for_child_fork(pid));
+
+            // The write in the other process should have no bearing on reads in this process.
+            EXPECT_EQ(readOnly->readString("hello"), "testing");
+
+            // Each thread uses a different read transaction nested under the main transaction.
+            // Verify that threads see the same version as their parent transaction.
+            {
+                // Destructor for return value waits for thread to complete.
+                runInAThread("workerThread", [&readOnly]() {
+                    // Stufff
+                    EXPECT_EQ(readOnly->readString("hello"), "testing");
+                });
+            }
+            EXPECT_EQ(readOnly->readString("hello"), "testing");
+        }
     }
 }
