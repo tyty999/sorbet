@@ -196,3 +196,8 @@ TEST_F(KeyValueStoreTest, ReadOnlyTransactionsSeeConsistentViewOfStore) {
         }
     }
 }
+
+TEST_F(KeyValueStoreTest, CannotCreateTwoKvstores) {
+    auto kvstore1 = make_unique<KeyValueStore>("1", directory, "vanilla");
+    EXPECT_THROW(make_unique<KeyValueStore>("1", directory, "vanilla"), invalid_argument);
+}
