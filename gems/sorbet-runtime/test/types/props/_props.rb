@@ -208,15 +208,53 @@ class Opus::Types::Test::Props::PropsTest < Critic::Unit::UnitTest
     end
   end
 
+  class MyShardedTestModel
+    attr_reader :id
+    class ShardExtractor
+      def shard_key_for_query(params)
+        [params['_id'], true]
+      end
+
+      def sharding_props
+        ['_id']
+      end
+    end
+
+    class ShardMapper
+      # dummy shard mapper maps each key to its own db
+      def dbs_from_shard_key(shard_key)
+        [shard_key]
+      end
+    end
+
+    def initialize(id)
+      @id = id
+    end
+
+    def self.load(id, extra={}, opts={})
+      return nil if id.nil? || opts[:db_name].nil?
+      id == opts[:db_name] ? MyShardedTestModel.new(id) : nil
+    end
+
+    def self.get_shard_extractor
+      ShardExtractor.new
+    end
+
+    def self.get_shard_mapper
+      ShardMapper.new
+    end
+  end
+
   class TestForeignProps
     include T::Props
 
     prop :foreign1, String, foreign: -> {MyTestModel}
     prop :foreign2, T.nilable(String), foreign: -> {MyTestModel}
+    prop :foreign_resharded, String, foreign_with_shard_key: -> {{model: MyShardedTestModel, field: :foreign1}}
   end
 
   describe 'foreign props' do
-    it 'supports nilable props' do
+    it 'supports foreign_with_shard_key' do
       obj = TestForeignProps.new
 
       obj.foreign1 = 'test'
@@ -232,6 +270,14 @@ class Opus::Types::Test::Props::PropsTest < Critic::Unit::UnitTest
       test_model = obj.foreign2_
       assert(test_model)
       assert_equal(obj.foreign2, test_model.id)
+
+      obj.foreign_resharded = 'test'
+      test_model = obj.foreign_resharded_
+      assert(test_model)
+      assert_equal(obj.foreign_resharded, test_model.id)
+      obj.foreign_resharded = 'testtest'
+      test_model = obj.foreign_resharded_
+      refute(test_model)
     end
 
     it 'disallows non-proc arguments' do

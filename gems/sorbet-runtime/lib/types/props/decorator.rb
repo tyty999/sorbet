@@ -58,6 +58,7 @@ class T::Props::Decorator
     enum
     foreign
     foreign_hint_only
+    foreign_with_shard_key
     ifunset
     immutable
     override
@@ -357,12 +358,14 @@ class T::Props::Decorator
     # get at the property (e.g., Chalk::ODM::Document exposes `get` and `set`).
     define_getter_and_setter(name, rules) unless rules[:without_accessors]
 
-    if rules[:foreign] && rules[:foreign_hint_only]
-      raise ArgumentError.new(":foreign and :foreign_hint_only are mutually exclusive.")
+    foreign_options = [:foreign, :foreign_hint_only, :foreign_with_shard_key]
+    if rules.select {|k, v| foreign_options.include?(k)}.size > 1
+      raise ArgumentError.new("At most one of :foreign, :foreign_hint_only, and :foreign_with_shard_key may be used.")
     end
 
     handle_foreign_option(name, cls, rules, rules[:foreign]) if rules[:foreign]
     handle_foreign_hint_only_option(name, cls, rules[:foreign_hint_only]) if rules[:foreign_hint_only]
+    handle_foreign_with_shard_key_option(name, cls, rules, rules[:foreign_with_shard_key]) if rules[:foreign_with_shard_key]
     handle_redaction_option(name, rules[:redaction]) if rules[:redaction]
   end
 
@@ -568,6 +571,38 @@ class T::Props::Decorator
     end
   end
 
+  sig do
+    params(
+      prop_name: T.any(String, Symbol),
+      rules: Rules,
+      foreign: T.untyped,
+    )
+    .void
+    .checked(:never)
+  end
+  private def define_foreign_with_shard_key_method(prop_name, rules, foreign)
+    fk_method = "#{prop_name}_"
+
+    @class.send(:define_method, fk_method) do |allow_direct_mutation: nil|
+      attrs = foreign.call
+      resolved_foreign = attrs[:model]
+      if [:load, :get_shard_extractor, :get_shard_mapper].any? {|method| !resolved_foreign.respond_to?(method)}
+        raise ArgumentError.new(
+          "The `foreign` proc for `#{prop_name}` must return a sharded model class. " \
+          "Got `#{resolved_foreign.inspect}` instead."
+        )
+      end
+      shard_extractor = resolved_foreign.get_shard_extractor
+      query = {shard_extractor.sharding_props[0] => self.send(attrs[:field])}
+      shard_key = shard_extractor.shard_key_for_query(query)[0]
+      db_name = resolved_foreign.get_shard_mapper.dbs_from_shard_key(shard_key)[0]
+      opts = {db_name: db_name}
+      opts[:allow_direct_mutation] = allow_direct_mutation if !allow_direct_mutation.nil?
+
+      T.unsafe(self.class).decorator.foreign_prop_get(self, prop_name, resolved_foreign, rules, opts)
+    end
+  end
+
   # checked(:never) - Rules hash is expensive to check
   sig do
     params(
@@ -609,6 +644,28 @@ class T::Props::Decorator
     end
 
     define_foreign_method(prop_name, rules, foreign)
+  end
+
+  sig do
+    params(
+      prop_name: Symbol,
+      prop_cls: Module,
+      rules: Rules,
+      foreign: T.untyped,
+    )
+    .void
+    .checked(:never)
+  end
+  private def handle_foreign_with_shard_key_option(prop_name, prop_cls, rules, foreign)
+    validate_foreign_option(
+      :foreign_with_shard_key, foreign, valid_type_msg: "a Proc that returns a {model: Model, field: Symbol} hash"
+    )
+
+    if prop_cls != String
+      raise ArgumentError.new("`foreign_with_shard_key` can only be used with a prop type of String")
+    end
+
+    define_foreign_with_shard_key_method(prop_name, rules, foreign)
   end
 
   # TODO: rename this to props_inherited
