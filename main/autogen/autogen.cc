@@ -116,6 +116,7 @@ public:
 
             auto it = refMap.find(ancst.get());
             if (it == refMap.end()) {
+                fmt::print("NO_PARENT {} '{}'\n", (void*) ancst.get(), ancst->toString(ctx));
                 continue;
             }
             if (original->kind == ast::ClassDef::Kind::Class && &ancst == &original->ancestors.front()) {
@@ -184,6 +185,7 @@ public:
         if (!defs.empty() && !nesting.empty() && defs.back().id._id != nesting.back()._id) {
             ref.parentKind = ClassKind::Class;
         }
+        fmt::print("REFMAP lit {} '{}'\n", (void*) original.get(),original->toString(ctx));
         refMap[original.get()] = ref.id;
         return original;
     }
@@ -217,8 +219,7 @@ public:
     }
 
     unique_ptr<ast::Send> preTransformSend(core::Context ctx, unique_ptr<ast::Send> original) {
-        if (original->fun == core::Names::keepForIde() || original->fun == core::Names::include() ||
-            original->fun == core::Names::extend()) {
+        if (original->fun == core::Names::keepForIde()) {
             ignoring.emplace_back(original.get());
         }
         if (original->flags.isPrivateOk && original->fun == core::Names::require() && original->args.size() == 1) {
