@@ -42,7 +42,7 @@ Opus::Require.on_autoload('Foo::Bar::Jazz')
 class Foo::Bar::Jazz < Foo::Bar::Quuz
 end
 
-Opus::Require.for_autoload(Foo::Bar::Jazz, "test/cli/autogen-autoloader/foo.rb")
+Opus::Require.for_autoload(Foo::Bar::Jazz, "test/cli/autogen-autoloader/foo.rb", [Foo::Bar, :Jazz])
 
 --- output/Foo/Bar/Quuz.rb
 # frozen_string_literal: true
@@ -56,7 +56,7 @@ Opus::Require.on_autoload('Foo::Bar::Quuz')
 class Foo::Bar::Quuz
 end
 
-Opus::Require.for_autoload(Foo::Bar::Quuz, "test/cli/autogen-autoloader/foo.rb")
+Opus::Require.for_autoload(Foo::Bar::Quuz, "test/cli/autogen-autoloader/foo.rb", [Foo::Bar, :Quuz])
 
 --- output/Foo/Dabba.rb
 # frozen_string_literal: true
@@ -92,7 +92,7 @@ Opus::Require.on_autoload('Foo::Errors::BaseError')
 class Foo::Errors::BaseError < StandardError
 end
 
-Opus::Require.for_autoload(Foo::Errors::BaseError, "test/cli/autogen-autoloader/errors.rb")
+Opus::Require.for_autoload(Foo::Errors::BaseError, "test/cli/autogen-autoloader/errors.rb", [Foo::Errors, :BaseError])
 
 --- output/Foo/Errors/MyError1.rb
 # frozen_string_literal: true
@@ -103,7 +103,7 @@ Opus::Require.on_autoload('Foo::Errors::MyError1')
 class Foo::Errors::MyError1 < Foo::Errors::BaseError
 end
 
-Opus::Require.for_autoload(Foo::Errors::MyError1, "test/cli/autogen-autoloader/errors.rb")
+Opus::Require.for_autoload(Foo::Errors::MyError1, "test/cli/autogen-autoloader/errors.rb", [Foo::Errors, :MyError1])
 
 --- output/Foo/Errors/MyError2.rb
 # frozen_string_literal: true
@@ -114,7 +114,7 @@ Opus::Require.on_autoload('Foo::Errors::MyError2')
 class Foo::Errors::MyError2 < Foo::Errors::BaseError
 end
 
-Opus::Require.for_autoload(Foo::Errors::MyError2, "test/cli/autogen-autoloader/errors.rb")
+Opus::Require.for_autoload(Foo::Errors::MyError2, "test/cli/autogen-autoloader/errors.rb", [Foo::Errors, :MyError2])
 
 --- output/Foo/TOP_LEVEL_CONST.rb
 # frozen_string_literal: true
@@ -164,7 +164,7 @@ Opus::Require.on_autoload('Yabba::Dabba::Bar2')
 class Yabba::Dabba::Bar2
 end
 
-Opus::Require.for_autoload(Yabba::Dabba::Bar2, "test/cli/autogen-autoloader/bar2.rb")
+Opus::Require.for_autoload(Yabba::Dabba::Bar2, "test/cli/autogen-autoloader/bar2.rb", [Yabba::Dabba, :Bar2])
 
 --- output/Yabba/Dabba/Jazz.rb
 # frozen_string_literal: true
@@ -188,7 +188,7 @@ Opus::Require.on_autoload('Yabba::Dabba::Jazz::JazBaz')
 class Yabba::Dabba::Jazz::JazBaz
 end
 
-Opus::Require.for_autoload(Yabba::Dabba::Jazz::JazBaz, "test/cli/autogen-autoloader/bar.rb")
+Opus::Require.for_autoload(Yabba::Dabba::Jazz::JazBaz, "test/cli/autogen-autoloader/bar.rb", [Yabba::Dabba::Jazz, :JazBaz])
 
 --- output/Yabba/Dabba/NoBehavior.rb
 # frozen_string_literal: true
@@ -199,7 +199,7 @@ Opus::Require.on_autoload('Yabba::Dabba::NoBehavior')
 class Yabba::Dabba::NoBehavior
 end
 
-Opus::Require.for_autoload(Yabba::Dabba::NoBehavior, "test/cli/autogen-autoloader/bar2.rb")
+Opus::Require.for_autoload(Yabba::Dabba::NoBehavior, "test/cli/autogen-autoloader/bar2.rb", [Yabba::Dabba, :NoBehavior])
 
 --- output/Yabba/Dabba/Quuz.rb
 # frozen_string_literal: true
@@ -210,7 +210,7 @@ Opus::Require.on_autoload('Yabba::Dabba::Quuz')
 class Yabba::Dabba::Quuz < AWS::String
 end
 
-Opus::Require.for_autoload(Yabba::Dabba::Quuz, "test/cli/autogen-autoloader/bar.rb")
+Opus::Require.for_autoload(Yabba::Dabba::Quuz, "test/cli/autogen-autoloader/bar.rb", [Yabba::Dabba, :Quuz])
 
 --- output/root.rb
 # frozen_string_literal: true

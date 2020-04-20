@@ -207,7 +207,8 @@ string DefTree::renderAutoloadSrc(const core::GlobalState &gs, const AutoloaderC
             }
             fmt::format_to(buf, "}})\n", fullName);
         }
-    } else if (nameParts.size() > 1) {
+    }
+    if (nameParts.size() > 1) {
         casgnArg = fmt::format(", [{}, :{}]",
                                fmt::map_join(nameParts.begin(), --nameParts.end(),
                                              "::", [&](const auto &nr) -> string { return nr.show(gs); }),
