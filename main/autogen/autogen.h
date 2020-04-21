@@ -59,6 +59,7 @@ struct Definition {
     Type type;
     bool defines_behavior;
     bool is_empty;
+    bool is_inner_class = false;
 
     ReferenceRef parent_ref;
     ReferenceRef aliased_ref;

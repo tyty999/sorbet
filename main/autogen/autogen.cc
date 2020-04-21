@@ -31,6 +31,7 @@ class AutogenWalk {
     vector<core::NameRef> requires;
     vector<DefinitionRef> nesting;
     vector<ast::Send *> ignoring;
+    int classNesting = 0;
 
     UnorderedMap<ast::Expression *, ReferenceRef> refMap;
 
@@ -75,6 +76,7 @@ public:
         def.id = defs.size() - 1;
         if (original->kind == ast::ClassDef::Kind::Class) {
             def.type = Definition::Type::Class;
+            def.is_inner_class = classNesting == 1;
         } else {
             def.type = Definition::Type::Module;
         }
@@ -125,6 +127,9 @@ public:
             refs[it->second.id()].parent_of = def.id;
         }
 
+        if (original->kind == ast::ClassDef::Kind::Class) {
+            classNesting += 1;
+        }
         return original;
     }
 
@@ -134,6 +139,10 @@ public:
         }
 
         nesting.pop_back();
+
+        if (original->kind == ast::ClassDef::Kind::Class) {
+            classNesting -= 1;
+        }
 
         return original;
     }
