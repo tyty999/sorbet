@@ -29,6 +29,12 @@ public:
     // Serializes a file and its AST.
     static std::vector<u1> storeFile(const core::File &file, ast::ParsedFile &tree);
 
+    // Serializes an AST.
+    static std::vector<u1> storeAST(ast::ParsedFile &tree);
+
+    // Deserializes the AST for the given file.
+    static ast::ParsedFile loadAST(const core::GlobalState &gs, const core::FileRef fref, const u1 *const data);
+
     static void loadGlobalState(GlobalState &gs, const u1 *const data);
 
     static u4 loadGlobalStateUUID(const GlobalState &gs, const u1 *const data);

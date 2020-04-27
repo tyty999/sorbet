@@ -54,9 +54,9 @@ class LSPTypechecker final {
      * instance, actively consume and replace GlobalState. */
     mutable std::unique_ptr<core::GlobalState> gs;
     /** Trees that have been indexed (with initialGS) and can be reused between different runs */
-    std::vector<ast::ParsedFile> indexed;
+    std::vector<std::vector<u1>> indexed;
     /** Trees that have been indexed (with finalGS) and can be reused between different runs */
-    UnorderedMap<int, ast::ParsedFile> indexedFinalGS;
+    UnorderedMap<u4, std::vector<u1>> indexedFinalGS;
     /** Stores the epoch in which we last sent diagnostics to the client for each file. */
     std::vector<u4> diagnosticEpochs;
     /** List of files that have had errors in last run*/
@@ -99,9 +99,9 @@ class LSPTypechecker final {
      */
     LSPFileUpdates getNoopUpdate(std::vector<core::FileRef> frefs) const;
 
-    /** Deep copy all entries in `indexed` that contain ASTs, except for those with IDs in the ignore set. Returns true
-     * on success, false if the operation was canceled. */
-    bool copyIndexed(WorkerPool &workers, const UnorderedSet<int> &ignore, std::vector<ast::ParsedFile> &out) const;
+    /** Get all ASTs in `indexed` except for those with IDs in the ignore set. Returns true on success, false if the
+     * operation was canceled. */
+    bool getAllIndexed(WorkerPool &workers, const UnorderedSet<int> &ignore, std::vector<ast::ParsedFile> &out) const;
 
 public:
     LSPTypechecker(std::shared_ptr<const LSPConfiguration> config,
@@ -134,7 +134,7 @@ public:
     /**
      * Returns the parsed file for the given file, up to the index passes (does not include resolver passes).
      */
-    const ast::ParsedFile &getIndexed(core::FileRef fref) const;
+    ast::ParsedFile getIndexed(core::FileRef fref) const;
 
     /**
      * Returns the parsed files for the given files, including resolver.
@@ -195,7 +195,7 @@ public:
     /**
      * Returns the parsed file for the given file, up to the index passes (does not include resolver passes).
      */
-    const ast::ParsedFile &getIndexed(core::FileRef fref) const;
+    ast::ParsedFile getIndexed(core::FileRef fref) const;
 
     /**
      * Returns the parsed files for the given files, including resolver.

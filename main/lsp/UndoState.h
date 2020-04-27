@@ -16,29 +16,29 @@ class UndoState final {
     // Stores the pre-slow-path global state.
     std::unique_ptr<core::GlobalState> evictedGs;
     // Stores index trees containing data stored in `gs` that have been evicted during the slow path operation.
-    UnorderedMap<int, ast::ParsedFile> evictedIndexed;
+    UnorderedMap<u4, std::vector<u1>> evictedIndexed;
     // Stores the index trees stored in `gs` that were evicted because the slow path operation replaced `gs`.
-    UnorderedMap<int, ast::ParsedFile> evictedIndexedFinalGS;
+    UnorderedMap<u4, std::vector<u1>> evictedIndexedFinalGS;
     // Stores the list of files that had errors before the slow path began.
     std::vector<core::FileRef> evictedFilesThatHaveErrors;
 
 public:
     UndoState(const LSPConfiguration &config, std::unique_ptr<core::GlobalState> evictedGs,
-              UnorderedMap<int, ast::ParsedFile> evictedIndexedFinalGS,
+              UnorderedMap<u4, std::vector<u1>> evictedIndexedFinalGS,
               std::vector<core::FileRef> evictedFilesThatHaveErrors);
 
     /**
      * Records that the given items were evicted from LSPTypechecker following a typecheck run.
      */
-    void recordEvictedState(ast::ParsedFile evictedIndexTree);
+    void recordEvictedState(core::FileRef fref, std::vector<u1> evictedIndexTree);
 
     /**
      * Undoes the slow path changes represented by this class. and clears the client's error list for any files that
      * were newly introduced with the canceled update. Returns a list of files that need to be retypechecked to update
      * their error lists.
      */
-    std::vector<core::FileRef> restore(std::unique_ptr<core::GlobalState> &gs, std::vector<ast::ParsedFile> &indexed,
-                                       UnorderedMap<int, ast::ParsedFile> &indexedFinalGS,
+    std::vector<core::FileRef> restore(std::unique_ptr<core::GlobalState> &gs, std::vector<std::vector<u1>> &indexed,
+                                       UnorderedMap<u4, std::vector<u1>> &indexedFinalGS,
                                        std::vector<core::FileRef> &filesThatHaveErrors);
 };
 

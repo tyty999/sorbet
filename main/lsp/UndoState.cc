@@ -9,13 +9,13 @@ using namespace std;
 
 namespace sorbet::realmain::lsp {
 UndoState::UndoState(const LSPConfiguration &config, unique_ptr<core::GlobalState> evictedGs,
-                     UnorderedMap<int, ast::ParsedFile> evictedIndexedFinalGS,
+                     UnorderedMap<u4, vector<u1>> evictedIndexedFinalGS,
                      vector<core::FileRef> evictedFilesThatHaveErrors)
     : config(config), evictedGs(move(evictedGs)), evictedIndexedFinalGS(std::move(evictedIndexedFinalGS)),
       evictedFilesThatHaveErrors(move(evictedFilesThatHaveErrors)) {}
 
-void UndoState::recordEvictedState(ast::ParsedFile evictedIndexTree) {
-    const auto id = evictedIndexTree.file.id();
+void UndoState::recordEvictedState(core::FileRef fref, vector<u1> evictedIndexTree) {
+    const auto id = fref.id();
     // The first time a file gets evicted, it's an index tree from the old global state.
     // Subsequent times it is evicting old index trees from the new global state, and we don't care.
     // Also, ignore updates to new files (id >= size of file table)
@@ -24,8 +24,8 @@ void UndoState::recordEvictedState(ast::ParsedFile evictedIndexTree) {
     }
 }
 
-vector<core::FileRef> UndoState::restore(unique_ptr<core::GlobalState> &gs, vector<ast::ParsedFile> &indexed,
-                                         UnorderedMap<int, ast::ParsedFile> &indexedFinalGS,
+vector<core::FileRef> UndoState::restore(unique_ptr<core::GlobalState> &gs, vector<vector<u1>> &indexed,
+                                         UnorderedMap<u4, vector<u1>> &indexedFinalGS,
                                          std::vector<core::FileRef> &filesThatHaveErrors) {
     // Replace evicted index trees.
     for (auto &entry : evictedIndexed) {

@@ -811,12 +811,24 @@ vector<u1> Serializer::storeFile(const core::File &file, ast::ParsedFile &tree) 
     return p.result(FILE_COMPRESSION_DEGREE);
 }
 
+vector<u1> Serializer::storeAST(ast::ParsedFile &tree) {
+    Pickler p;
+    SerializerImpl::pickleTree(p, tree.tree);
+    return p.result(FILE_COMPRESSION_DEGREE);
+}
+
 CachedFile Serializer::loadFile(const core::GlobalState &gs, core::FileRef fref, const u1 *const data) {
     UnPickler p(data, gs.tracer());
     auto file = SerializerImpl::unpickleFile(p);
     file->cached = true;
     auto tree = SerializerImpl::unpickleExpr(p, gs, fref);
     return CachedFile{move(file), move(tree)};
+}
+
+ast::ParsedFile Serializer::loadAST(const core::GlobalState &gs, core::FileRef fref, const u1 *const data) {
+    UnPickler p(data, gs.tracer());
+    auto tree = SerializerImpl::unpickleExpr(p, gs, fref);
+    return ast::ParsedFile{move(tree), fref};
 }
 
 template <class T> void SerializerImpl::pickleTree(Pickler &p, unique_ptr<T> &t) {
