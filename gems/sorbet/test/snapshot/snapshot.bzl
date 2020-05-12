@@ -34,6 +34,61 @@ def snapshot_tests(ruby = None, tests = []):
         tags = ["manual"],
     )
 
+def _build_snapshot_artifacts(ctx):
+
+    ctx.actions.run_shell(
+        outputs = [ctx.outputs.archive],
+        inputs = ctx.files.srcs,
+        tools = ctx.files._run_one,
+        command = """
+        log_file="$(mktemp)"
+        cleanup() {{
+            rm -f "$log_file"
+        }}
+
+        trap cleanup EXIT
+
+        if ! {run_one} {ruby} {archive} {test_name} &> "$log_file" ; then
+            cat "$log_file"
+            exit 1
+        fi
+        """.format(
+            run_one = ctx.executable._run_one.path,
+            ruby = ctx.attr.ruby,
+            archive = ctx.outputs.archive.path,
+            test_name = ctx.attr.test_name,
+        ),
+        progress_message = "Running {} ({})".format(ctx.attr.test_name, ctx.attr.ruby),
+    )
+
+    runfiles = ctx.runfiles(files = ctx.files.srcs + ctx.files._run_one)
+
+    return [DefaultInfo(
+        runfiles = runfiles
+    )]
+
+build_snapshot_artifacts = rule(
+    implementation = _build_snapshot_artifacts,
+    attrs = {
+        "_run_one": attr.label(
+            executable = True,
+            default = ":run_one",
+            cfg = "target",
+        ),
+
+        "ruby": attr.string(),
+
+        "test_name": attr.string(),
+
+        "srcs": attr.label_list(
+            allow_empty = False,
+            allow_files = True,
+        ),
+
+        "archive": attr.output(),
+    },
+)
+
 def _snapshot_test(test_path, ruby):
     """
     test_path is of the form `total/test` or `partial/test`.
@@ -43,41 +98,16 @@ def _snapshot_test(test_path, ruby):
     res = {}
     actual = "{}/actual_{}.tar".format(test_path, ruby)
 
-    native.genrule(
+    build_snapshot_artifacts(
         name = "actual_{}/{}".format(ruby, test_path),
-        message = "Running {} ({})".format(test_path, ruby),
-        tools = [
-            ":run_one",
-        ],
-        srcs = [
-            "//main:sorbet",
-            "//gems/sorbet:sorbet",
-
-            # TODO: how do we ask for the environment of the c compiler here,
-            # for supporting gems with native code? (An example of this is the
-            # `json` gem)
-        ] + native.glob(
-            [
-                "{}/src/**/*".format(test_path),
-                "{}/expected/**/*".format(test_path),
-                "{}/gems/**/*".format(test_path),
-            ],
-        ),
-        outs = [actual],
-        testonly = True,
-
-        # NOTE: this is manual to avoid being caught with `//...`
-        tags = ["manual"],
-
-        # NOTE: this redirects stdout/stderr to a log, and only outputs on
-        # failure.
-        cmd = """
-        if ! $(location :run_one) {ruby} $(location {actual}) {test_path} \\
-                &> genrule.log ; then
-            cat genrule.log
-            exit 1
-        fi
-        """.format(ruby = ruby, actual = actual, test_path = test_path),
+        ruby = "ruby_2_6",
+        test_name = test_path,
+        srcs = native.glob([
+            "{}/src/**/*".format(test_path),
+            "{}/expected/**/*".format(test_path),
+            "{}/gems/**/*".format(test_path),
+        ]),
+        archive = actual,
     )
 
     test_name = "test_{}/{}".format(ruby, test_path)

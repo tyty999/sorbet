@@ -22,6 +22,7 @@ sh_binary(
     data = [
         "sorbet-typed.rev",
         "//main:sorbet",
+        "//gems/sorbet:sorbet",
         "@gems//gems",
         "@ruby_2_5//:bundle",
         "@ruby_2_5//:ruby",

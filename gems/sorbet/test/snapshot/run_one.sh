@@ -108,7 +108,7 @@ GEMS_LOC="$(dirname "$(rlocation gems/gems/cantor-1.2.1.gem)")"
 SRB_SORBET_EXE="$(rlocation com_stripe_ruby_typer/main/sorbet)"
 export SRB_SORBET_EXE
 
-srb="${repo_root}/gems/sorbet/bin/srb"
+srb="$(rlocation com_stripe_ruby_typer/gems/sorbet/bin/srb)"
 
 info "├─ sorbet:           $SRB_SORBET_EXE"
 info "├─ sorbet --version: $("$SRB_SORBET_EXE" --version)"
