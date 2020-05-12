@@ -35,7 +35,6 @@ def snapshot_tests(ruby = None, tests = []):
     )
 
 def _build_snapshot_artifacts(ctx):
-
     ctx.actions.run_shell(
         outputs = [ctx.outputs.archive],
         inputs = ctx.files.srcs,
@@ -64,7 +63,7 @@ def _build_snapshot_artifacts(ctx):
     runfiles = ctx.runfiles(files = ctx.files.srcs + ctx.files._run_one)
 
     return [DefaultInfo(
-        runfiles = runfiles
+        runfiles = runfiles,
     )]
 
 build_snapshot_artifacts = rule(
@@ -75,16 +74,12 @@ build_snapshot_artifacts = rule(
             default = ":run_one",
             cfg = "target",
         ),
-
         "ruby": attr.string(),
-
         "test_name": attr.string(),
-
         "srcs": attr.label_list(
             allow_empty = False,
             allow_files = True,
         ),
-
         "archive": attr.output(),
     },
 )

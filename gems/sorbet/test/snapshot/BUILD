@@ -21,8 +21,8 @@ sh_binary(
     srcs = ["run_one.sh"],
     data = [
         "sorbet-typed.rev",
+        "//gems/sorbet",
         "//main:sorbet",
-        "//gems/sorbet:sorbet",
         "@gems//gems",
         "@ruby_2_5//:bundle",
         "@ruby_2_5//:ruby",
