@@ -1,0 +1,8 @@
+--- autogen-dsls ---
+'::Bar':
+  'foo': 5
+  'bar': '::SomeOtherClass'
+  'baz':
+    - "this"
+    - "that"
+    - "the other"

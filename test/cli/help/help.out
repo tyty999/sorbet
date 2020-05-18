@@ -148,7 +148,7 @@ Usage:
                                 symbol-table-full, symbol-table-full-raw,
                                 symbol-table-full-json, file-table-json,
                                 missing-constants, plugin-generated-code, autogen,
-                                autogen-msgpack, autogen-classlist,
+                                autogen-msgpack, autogen-classlist, autogen-dsls,
                                 autogen-autoloader, autogen-subclasses]
       --autogen-subclasses-parent string
                                 Parent classes for which generate a list of
