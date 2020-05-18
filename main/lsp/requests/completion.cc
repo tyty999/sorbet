@@ -809,7 +809,7 @@ unique_ptr<ResponseMessage> CompletionTask::runRequest(LSPTypecheckerDelegate &t
                     return left.depth < right.depth;
                 }
 
-                return left.method._id < right.method._id;
+                return left.method.raw() < right.method.raw();
             });
         }
 
@@ -855,7 +855,7 @@ unique_ptr<ResponseMessage> CompletionTask::runRequest(LSPTypecheckerDelegate &t
                 return leftShortName < rightShortName;
             }
 
-            return left.method._id < right.method._id;
+            return left.method.raw() < right.method.raw();
         });
 
         // TODO(jez) Do something smarter here than "all keywords then all locals then all methods"
