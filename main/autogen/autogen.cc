@@ -36,6 +36,7 @@ class AutogenWalk {
     vector<ScopeType> scopeTypes;
 
     UnorderedMap<ast::Expression *, ReferenceRef> refMap;
+    UnorderedMap<ast::Expression *, UnorderedMap<core::NameRef, vector<ast::Expression *>>> dslMap;
 
     vector<core::NameRef> symbolName(core::Context ctx, core::SymbolRef sym) {
         vector<core::NameRef> out;
@@ -127,6 +128,28 @@ public:
                 def.parent_ref = it->second;
             }
             refs[it->second.id()].parent_of = def.id;
+        }
+
+        for (auto &expr : original->rhs) {
+            auto send = ast::cast_tree<ast::Send>(expr.get());
+            // this is clearly not a DSL invocation
+            if (!send || !send->recv->isSelfReference() || send->args.size() > 1) {
+                continue;
+            }
+            // this is a built-in we don't care about
+            if (send->fun == core::Names::include() || send->fun == core::Names::extend() ||
+                send->fun == core::Names::require() || send->fun == core::Names::attrReader() ||
+                send->fun == core::Names::attrWriter() || send->fun == core::Names::attrAccessor()) {
+                continue;
+            }
+
+            if (send->args.size() == 1 && !send->block) {
+                dslMap[original->name.get()][send->fun].emplace_back(send->args.front().get());
+            }
+
+            if (send->args.size() == 0 && send->block) {
+                dslMap[original->name.get()][send->fun].emplace_back(send->block->body.get());
+            }
         }
 
         return original;
@@ -263,6 +286,7 @@ public:
         out.refs = move(refs);
         out.defs = move(defs);
         out.requires = move(requires);
+        out.dslMap = std::move(dslMap);
         return out;
     }
 };
@@ -639,6 +663,35 @@ vector<string> ParsedFile::listAllClasses(core::Context ctx) {
     }
 
     return out;
+}
+
+std::string ParsedFile::listDSLValues(core::Context ctx) {
+    fmt::memory_buffer out;
+
+    for (auto &pair : dslMap) {
+        fmt::format_to(out, "'{}':\n", pair.first->toString(ctx));
+        for (auto &v : pair.second) {
+            if (v.second.size() == 1) {
+                auto expr = v.second.front();
+                if (ast::isa_tree<ast::Literal>(expr)) {
+                    fmt::format_to(out, "  '{}': {}\n", v.first.toString(ctx), expr->toString(ctx));
+                } else {
+                    fmt::format_to(out, "  '{}': '{}'\n", v.first.toString(ctx), expr->toString(ctx));
+                }
+            } else {
+                fmt::format_to(out, "  '{}':\n", v.first.toString(ctx));
+                for (auto &expr : v.second) {
+                    if (ast::isa_tree<ast::Literal>(expr)) {
+                        fmt::format_to(out, "    - {}\n", expr->toString(ctx));
+                    } else {
+                        fmt::format_to(out, "    - '{}'\n", expr->toString(ctx));
+                    }
+                }
+            }
+        }
+    }
+
+    return string(out.data(), out.size());
 }
 
 } // namespace sorbet::autogen

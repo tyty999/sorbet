@@ -92,11 +92,13 @@ struct ParsedFile {
     std::vector<Definition> defs;
     std::vector<Reference> refs;
     std::vector<core::NameRef> requires;
+    UnorderedMap<ast::Expression *, UnorderedMap<core::NameRef, std::vector<ast::Expression *>>> dslMap;
 
     std::string toString(const core::GlobalState &gs) const;
     std::string toMsgpack(core::Context ctx, int version);
     std::vector<core::NameRef> showFullName(const core::GlobalState &gs, DefinitionRef id) const;
     std::vector<std::string> listAllClasses(core::Context ctx);
+    std::string listDSLValues(core::Context ctx);
 };
 
 class Autogen final {
