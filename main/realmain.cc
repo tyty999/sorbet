@@ -188,6 +188,7 @@ struct AutogenResult {
         string msgpack;
         vector<string> classlist;
         optional<autogen::Subclasses::Map> subclasses;
+        string dslvalues;
     };
     CounterState counters;
     vector<pair<int, Serialized>> prints;
@@ -245,6 +246,10 @@ void runAutogen(const core::GlobalState &gs, options::Options &opts, const autog
                     Timer timeit(logger, "autogenNamedDefs");
                     autogen::DefTreeBuilder::addParsedFileDefinitions(ctx, autoloaderCfg, out.defTree, pf);
                 }
+                if (opts.print.AutogenDSLs.enabled) {
+                    Timer timeit(logger, "autogenDSLs");
+                    serialized.dslvalues = pf.listDSLValues(ctx);
+                }
 
                 out.prints.emplace_back(make_pair(idx, serialized));
             }
@@ -277,6 +282,9 @@ void runAutogen(const core::GlobalState &gs, options::Options &opts, const autog
         }
         if (opts.print.AutogenMsgPack.enabled) {
             opts.print.AutogenMsgPack.print(elem.second.msgpack);
+        }
+        if (opts.print.AutogenDSLs.enabled) {
+            opts.print.AutogenDSLs.print(elem.second.dslvalues);
         }
     }
     if (opts.print.AutogenAutoloader.enabled) {
