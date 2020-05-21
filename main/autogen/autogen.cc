@@ -58,6 +58,14 @@ class AutogenWalk {
         return out;
     }
 
+    bool isSensibleDSLParam(ast::Expression* expr) {
+        if (ast::isa_tree<ast::Literal>(expr) || ast::isa_tree<ast::UnresolvedConstantLit>(expr) ||
+            ast::isa_tree<ast::ConstantLit>(expr)) {
+            return true;
+        }
+        return false;
+    }
+
 public:
     AutogenWalk() {
         auto &def = defs.emplace_back();
@@ -139,15 +147,16 @@ public:
             // this is a built-in we don't care about
             if (send->fun == core::Names::include() || send->fun == core::Names::extend() ||
                 send->fun == core::Names::require() || send->fun == core::Names::attrReader() ||
-                send->fun == core::Names::attrWriter() || send->fun == core::Names::attrAccessor()) {
+                send->fun == core::Names::attrWriter() || send->fun == core::Names::attrAccessor() ||
+                send->fun == core::Names::private_() || send->fun == description) {
                 continue;
             }
 
-            if (send->args.size() == 1 && !send->block) {
+            if (send->args.size() == 1 && !send->block && isSensibleDSLParam(send->args.front().get())) {
                 dslMap[original->name.get()][send->fun].emplace_back(send->args.front().get());
             }
 
-            if (send->args.size() == 0 && send->block) {
+            if (send->args.size() == 0 && send->block && isSensibleDSLParam(send->block->body.get())) {
                 dslMap[original->name.get()][send->fun].emplace_back(send->block->body.get());
             }
         }
