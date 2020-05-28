@@ -568,7 +568,12 @@ public:
     }
 
     UnorderedMap<NameRef, SymbolRef> members_;
-    std::vector<ArgInfo> arguments_;
+
+    // Should probably keep in sync with ast::MethodDef::EXPECTED_ARGS_COUNT
+    static constexpr int EXPECTED_ARGS_COUNT = 2;
+    using ArgumentsStore = InlinedVector<ArgInfo, EXPECTED_ARGS_COUNT>;
+
+    ArgumentsStore arguments_;
 
     UnorderedMap<NameRef, SymbolRef> &members() {
         return members_;
@@ -577,12 +582,12 @@ public:
         return members_;
     };
 
-    std::vector<ArgInfo> &arguments() {
+    ArgumentsStore &arguments() {
         ENFORCE(isMethod());
         return arguments_;
     }
 
-    const std::vector<ArgInfo> &arguments() const {
+    const ArgumentsStore &arguments() const {
         ENFORCE(isMethod());
         return arguments_;
     }

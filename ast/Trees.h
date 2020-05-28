@@ -142,6 +142,7 @@ class MethodDef final : public Declaration {
 public:
     std::unique_ptr<Expression> rhs;
 
+    // Should probably keep in sync with Symbol::EXPECTED_ARGS_COUNT
     static constexpr int EXPECTED_ARGS_COUNT = 2;
     using ARGS_store = InlinedVector<std::unique_ptr<Expression>, EXPECTED_ARGS_COUNT>;
     ARGS_store args;
