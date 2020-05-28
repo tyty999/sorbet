@@ -1208,14 +1208,14 @@ void Symbol::addLoc(const core::GlobalState &gs, core::Loc loc) {
         return;
     }
 
-    if (ref(gs) != Symbols::root()) {
+    /*if (ref(gs) != Symbols::root()) {
         for (auto &existing : locs_) {
             if (existing.file() == loc.file()) {
                 existing = loc;
                 return;
             }
         }
-    }
+    }*/
 
     if (locs_.empty() || (loc.file().data(gs).sourceType == core::File::Type::Normal && !loc.file().data(gs).isRBI())) {
         // Make this the new canonical loc.
