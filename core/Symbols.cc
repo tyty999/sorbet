@@ -163,23 +163,22 @@ SymbolData SymbolRef::data(GlobalState &gs) const {
 }
 
 SymbolData SymbolRef::dataAllowingNone(GlobalState &gs) const {
-    const u4 id = this->id();
     switch (kind()) {
         case SymbolRef::Kind::ClassOrModule:
-            ENFORCE(id < gs.classAndModules.size());
-            return SymbolData(gs.classAndModules[id], gs);
+            ENFORCE(classOrModuleIndex() < gs.classAndModules.size());
+            return SymbolData(gs.classAndModules[classOrModuleIndex()], gs);
         case SymbolRef::Kind::Method:
-            ENFORCE(id < gs.methods.size());
-            return SymbolData(gs.methods[id], gs);
+            ENFORCE(methodIndex() < gs.methods.size());
+            return SymbolData(gs.methods[methodIndex()], gs);
         case SymbolRef::Kind::Field:
-            ENFORCE(id < gs.fields.size());
-            return SymbolData(gs.fields[id], gs);
+            ENFORCE(fieldIndex() < gs.fields.size());
+            return SymbolData(gs.fields[fieldIndex()], gs);
         case SymbolRef::Kind::TypeArgument:
-            ENFORCE(id < gs.typeArguments.size());
-            return SymbolData(gs.typeArguments[id], gs);
+            ENFORCE(typeArgumentIndex() < gs.typeArguments.size());
+            return SymbolData(gs.typeArguments[typeArgumentIndex()], gs);
         case SymbolRef::Kind::TypeMember:
-            ENFORCE(id < gs.typeMembers.size());
-            return SymbolData(gs.typeMembers[id], gs);
+            ENFORCE(typeMemberIndex() < gs.typeMembers.size());
+            return SymbolData(gs.typeMembers[typeMemberIndex()], gs);
     }
 }
 
@@ -189,38 +188,37 @@ const SymbolData SymbolRef::data(const GlobalState &gs) const {
 }
 
 const SymbolData SymbolRef::dataAllowingNone(const GlobalState &gs) const {
-    const u4 id = this->id();
     switch (kind()) {
         case SymbolRef::Kind::ClassOrModule:
-            ENFORCE(id < gs.classAndModules.size());
-            return SymbolData(const_cast<Symbol &>(gs.classAndModules[id]), gs);
+            ENFORCE(classOrModuleIndex() < gs.classAndModules.size());
+            return SymbolData(const_cast<Symbol &>(gs.classAndModules[classOrModuleIndex()]), gs);
         case SymbolRef::Kind::Method:
-            ENFORCE(id < gs.methods.size());
-            return SymbolData(const_cast<Symbol &>(gs.methods[id]), gs);
+            ENFORCE(methodIndex() < gs.methods.size());
+            return SymbolData(const_cast<Symbol &>(gs.methods[methodIndex()]), gs);
         case SymbolRef::Kind::Field:
-            ENFORCE(id < gs.fields.size());
-            return SymbolData(const_cast<Symbol &>(gs.fields[id]), gs);
+            ENFORCE(fieldIndex() < gs.fields.size());
+            return SymbolData(const_cast<Symbol &>(gs.fields[fieldIndex()]), gs);
         case SymbolRef::Kind::TypeArgument:
-            ENFORCE(id < gs.typeArguments.size());
-            return SymbolData(const_cast<Symbol &>(gs.typeArguments[id]), gs);
+            ENFORCE(typeArgumentIndex() < gs.typeArguments.size());
+            return SymbolData(const_cast<Symbol &>(gs.typeArguments[typeArgumentIndex()]), gs);
         case SymbolRef::Kind::TypeMember:
-            ENFORCE(id < gs.typeMembers.size());
-            return SymbolData(const_cast<Symbol &>(gs.typeMembers[id]), gs);
+            ENFORCE(typeMemberIndex() < gs.typeMembers.size());
+            return SymbolData(const_cast<Symbol &>(gs.typeMembers[typeMemberIndex()]), gs);
     }
 }
 
 bool SymbolRef::isSynthetic() const {
     switch (this->kind()) {
         case Kind::ClassOrModule:
-            return id() < Symbols::MAX_SYNTHETIC_CLASS_SYMBOLS;
+            return classOrModuleIndex() < Symbols::MAX_SYNTHETIC_CLASS_SYMBOLS;
         case Kind::Method:
-            return id() < Symbols::MAX_SYNTHETIC_METHOD_SYMBOLS;
+            return methodIndex() < Symbols::MAX_SYNTHETIC_METHOD_SYMBOLS;
         case Kind::Field:
-            return id() < Symbols::MAX_SYNTHETIC_FIELD_SYMBOLS;
+            return fieldIndex() < Symbols::MAX_SYNTHETIC_FIELD_SYMBOLS;
         case Kind::TypeArgument:
-            return id() < Symbols::MAX_SYNTHETIC_TYPEARGUMENT_SYMBOLS;
+            return typeArgumentIndex() < Symbols::MAX_SYNTHETIC_TYPEARGUMENT_SYMBOLS;
         case Kind::TypeMember:
-            return id() < Symbols::MAX_SYNTHETIC_TYPEMEMBER_SYMBOLS;
+            return typeMemberIndex() < Symbols::MAX_SYNTHETIC_TYPEMEMBER_SYMBOLS;
     }
 }
 
