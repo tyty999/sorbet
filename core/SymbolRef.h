@@ -63,10 +63,6 @@ public:
         return _id >> KIND_BITS;
     }
 
-    u4 hash() const {
-        return _id;
-    }
-
     u4 raw() const {
         return _id;
     }
@@ -524,7 +520,7 @@ public:
 };
 
 template <typename H> H AbslHashValue(H h, const SymbolRef &m) {
-    return H::combine(std::move(h), m.hash());
+    return H::combine(std::move(h), m.raw());
 }
 
 } // namespace sorbet::core
