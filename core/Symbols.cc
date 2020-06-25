@@ -716,7 +716,7 @@ string Symbol::toStringWithOptions(const GlobalState &gs, int tabs, bool showFul
 }
 
 string ArgInfo::show(const GlobalState &gs) const {
-    return fmt::format("{}", this->argumentName(gs));
+    return this->argumentName(gs);
 }
 
 string ArgInfo::toString(const GlobalState &gs) const {
@@ -756,7 +756,7 @@ string Symbol::show(const GlobalState &gs) const {
     if (isClassOrModule() && isSingletonClass(gs)) {
         auto attached = this->attachedClass(gs);
         if (attached.exists()) {
-            return fmt::format("T.class_of({})", attached.data(gs)->show(gs));
+            return absl::StrCat("T.class_of(", attached.data(gs)->show(gs), ")");
         }
     }
 
@@ -767,18 +767,17 @@ string Symbol::show(const GlobalState &gs) const {
     if (this->name == core::Names::Constants::AttachedClass()) {
         auto attached = this->owner.data(gs)->attachedClass(gs);
         ENFORCE(attached.exists());
-        return fmt::format("T.attached_class (of {})", attached.data(gs)->show(gs));
+        return absl::StrCat("T.attached_class (of ", attached.data(gs)->show(gs), ")");
     }
 
     if (this->isMethod() && this->owner.data(gs)->isClassOrModule() && this->owner.data(gs)->isSingletonClass(gs)) {
-        return fmt::format("{}.{}", this->owner.data(gs)->attachedClass(gs).data(gs)->show(gs),
-                           this->name.data(gs)->show(gs));
+        return absl::StrCat(this->owner.data(gs)->attachedClass(gs).data(gs)->show(gs), ".",
+                            this->name.data(gs)->show(gs));
     }
 
     auto needsColonColon = this->isClassOrModule() || this->isStaticField() || this->isTypeMember();
 
-    return fmt::format("{}{}{}", this->owner.data(gs)->show(gs), needsColonColon ? "::" : "#",
-                       this->name.data(gs)->show(gs));
+    return absl::StrCat(this->owner.data(gs)->show(gs), needsColonColon ? "::" : "#", this->name.data(gs)->show(gs));
 }
 
 string ArgInfo::argumentName(const GlobalState &gs) const {
