@@ -36,7 +36,7 @@ unsigned int Name::hash(const GlobalState &gs) const {
 string Name::showRaw(const GlobalState &gs) const {
     switch (this->kind) {
         case NameKind::UTF8:
-            return fmt::format("<U {}>", string(raw.utf8.begin(), raw.utf8.end()));
+            return absl::StrCat("<U ", raw.utf8, ">");
         case NameKind::UNIQUE: {
             string kind;
             switch (this->unique.uniqueNameKind) {
@@ -79,13 +79,14 @@ string Name::showRaw(const GlobalState &gs) const {
             }
             if (gs.censorForSnapshotTests && this->unique.uniqueNameKind == UniqueNameKind::Namer &&
                 this->unique.original == core::Names::staticInit()) {
-                return fmt::format("<{} {} ${}>", kind, this->unique.original.data(gs)->showRaw(gs), "CENSORED");
+                return absl::StrCat("<", kind, " ", this->unique.original.data(gs)->showRaw(gs), " $CENSORED>");
             } else {
-                return fmt::format("<{} {} ${}>", kind, this->unique.original.data(gs)->showRaw(gs), this->unique.num);
+                return absl::StrCat("<", kind, " ", this->unique.original.data(gs)->showRaw(gs), "$", this->unique.num,
+                                    ">");
             }
         }
         case NameKind::CONSTANT:
-            return fmt::format("<C {}>", this->cnst.original.showRaw(gs));
+            return absl::StrCat("<C ", this->cnst.original.showRaw(gs), ">");
     }
 }
 
