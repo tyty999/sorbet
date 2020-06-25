@@ -498,7 +498,7 @@ string Symbol::toStringFullName(const GlobalState &gs) const {
     bool includeOwner = this->owner.exists() && this->owner != Symbols::root();
     string owner = includeOwner ? this->owner.data(gs)->toStringFullName(gs) : "";
 
-    return fmt::format("{}{}", owner, this->name.showRaw(gs));
+    return absl::StrCat(owner, this->name.showRaw(gs));
 }
 
 string Symbol::showFullName(const GlobalState &gs) const {
@@ -508,7 +508,7 @@ string Symbol::showFullName(const GlobalState &gs) const {
     bool needsColonColon = this->isClassOrModule() || this->isStaticField() || this->isTypeMember();
     string separator = needsColonColon ? "::" : "#";
 
-    return fmt::format("{}{}{}", owner, separator, this->name.show(gs));
+    return absl::StrCat(owner, separator, this->name.show(gs));
 }
 
 bool Symbol::isHiddenFromPrinting(const GlobalState &gs) const {
