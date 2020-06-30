@@ -63,7 +63,20 @@ void ErrorQueue::checkOwned() {
 
 bool ErrorQueue::isEmpty() {
     checkOwned();
-    return collected.empty();
+    // return collected.empty();
+    for (auto &it : collected) {
+        if (it.first.id() != core::FileRef().id() && !it.second.empty()) {
+            cerr << "[ErrorQueue] Collected not empty\n";
+            return false;
+        }
+    }
+
+    core::ErrorQueueMessage msg;
+    for (auto result = queue.try_pop(msg); result.gotItem(); result = queue.try_pop(msg)) {
+        cerr << "[ErrorQueue] Queue not empty\n";
+        return false;
+    }
+    return true;
 }
 
 UnorderedMap<core::FileRef, vector<unique_ptr<core::ErrorQueueMessage>>> ErrorQueue::drainAll() {
