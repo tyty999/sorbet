@@ -1015,6 +1015,9 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                     return ast::ParsedFilesOrCancelled();
                 }
             }
+            if (!gs->errorQueue->isEmpty()) {
+                cerr << "[pipeline::typecheck] ErrorQueue not empty\n";
+            }
 
             if (workers.size() > 0) {
                 auto counterq = make_shared<BlockingBoundedQueue<CounterState>>(workers.size());
