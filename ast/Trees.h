@@ -220,6 +220,8 @@ public:
     }
 
     TreePtr deepCopy() const;
+
+    std::string nodeName() const;
 };
 
 template <class E, typename... Args> TreePtr make_tree(Args &&... args) {
@@ -234,7 +236,6 @@ public:
     std::string toString(const core::GlobalState &gs) const {
         return toStringWithTabs(gs);
     }
-    virtual std::string nodeName() = 0;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0) = 0;
     virtual void _sanityCheck() = 0;
     const core::LocOffsets loc;
@@ -348,7 +349,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -382,7 +383,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -401,7 +402,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -419,7 +420,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -436,7 +437,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -451,7 +452,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -468,7 +469,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -485,7 +486,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -510,7 +511,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -533,7 +534,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -550,7 +551,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -574,7 +575,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -591,7 +592,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -608,7 +609,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -626,7 +627,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -643,7 +644,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -660,7 +661,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -678,7 +679,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -714,7 +715,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -735,7 +736,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -756,7 +757,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -776,7 +777,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -793,7 +794,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
     bool isString(const core::GlobalState &gs) const;
     bool isSymbol(const core::GlobalState &gs) const;
     bool isNil(const core::GlobalState &gs) const;
@@ -818,7 +819,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -840,7 +841,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
     std::optional<std::pair<core::SymbolRef, std::vector<core::NameRef>>> fullUnresolvedPath(
         const core::GlobalState &gs) const;
 
@@ -858,7 +859,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -876,7 +877,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
     virtual void _sanityCheck();
 };
 CheckSize(Block, 48, 8);
@@ -897,7 +898,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
@@ -912,7 +913,7 @@ public:
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
-    virtual std::string nodeName();
+    std::string nodeName();
 
 private:
     virtual void _sanityCheck();
