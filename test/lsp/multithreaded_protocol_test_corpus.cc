@@ -38,7 +38,7 @@ void checkDiagnosticTimes(vector<unique_ptr<CounterImpl::Timing>> times, size_t 
 }
 */
 // The resolution of MONOTONIC_COARSE seems to be ~1ms, so we use >1ms delay to ensure unique clock values.
-constexpr auto timestampGranularity = chrono::milliseconds(2);
+// constexpr auto timestampGranularity = chrono::milliseconds(2);
 
 class MultithreadedProtocolTest : public ProtocolTest {
 public:
@@ -49,24 +49,13 @@ public:
 
 TEST_CASE_FIXTURE(MultithreadedProtocolTest, "MultithreadedWrapperWorks") {
     assertDiagnostics(initializeLSP(), {});
-    {
-        auto initCounters = getCounters();
-        CHECK_EQ(initCounters.getCategoryCounter("lsp.messages.processed", "initialize"), 1);
-        CHECK_EQ(initCounters.getCategoryCounter("lsp.messages.processed", "initialized"), 1);
-        CHECK_EQ(initCounters.getCategoryCounter("lsp.updates", "slowpath"), 1);
-        CHECK_EQ(initCounters.getCategoryCounterSum("lsp.updates"), 1);
-        CHECK_EQ(initCounters.getTimings("initial_index").size(), 1);
-        CHECK_EQ(initCounters.getCategoryCounterSum("lsp.messages.canceled"), 0);
-    }
 
     sendAsync(LSPMessage(make_unique<NotificationMessage>("2.0", LSPMethod::PAUSE, nullopt)));
     sendAsync(*openFile("yolo1.rb", "# typed: true\nclass Foo2\n  def branch\n    2 + \"dog\"\n  end\nend\n"));
     // Pause to differentiate message times.
-    this_thread::sleep_for(timestampGranularity);
     sendAsync(*changeFile("yolo1.rb", "# typed: true\nclass Foo1\n  def branch\n    1 + \"bear\"\n  end\nend\n", 3));
 
     // Pause so that all latency timers for the above operations get reported.
-    this_thread::sleep_for(chrono::milliseconds(2));
 
     assertDiagnostics(send(LSPMessage(make_unique<NotificationMessage>("2.0", LSPMethod::RESUME, nullopt))),
                       {{"yolo1.rb", 3, "bear"}});
