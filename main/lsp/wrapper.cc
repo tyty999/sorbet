@@ -38,7 +38,10 @@ createGlobalStateAndOtherObjects(string_view rootPath, options::Options &options
     stderrColorSinkOut = make_shared<spd::sinks::ansicolor_stderr_sink_mt>();
     loggerOut = make_shared<spd::logger>("console", stderrColorSinkOut);
     typeErrorsConsoleOut = make_shared<spd::logger>("typeDiagnostics", stderrColorSinkOut);
-    typeErrorsConsoleOut->set_pattern("%v");
+    typeErrorsConsoleOut->set_level(spd::level::trace); // pass through everything, let the sinks decide
+    stderrColorSinkOut->set_level(spd::level::trace);
+    loggerOut->set_level(spd::level::trace);
+    typeErrorsConsoleOut->set_pattern("[T%t][%Y-%m-%dT%T.%f] %v");
     auto gs = make_unique<core::GlobalState>(make_shared<core::ErrorQueue>(*typeErrorsConsoleOut, *loggerOut));
 
     unique_ptr<const OwnedKeyValueStore> kvstore = cache::maybeCreateKeyValueStore(options);
