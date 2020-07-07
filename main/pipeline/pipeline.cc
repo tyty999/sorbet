@@ -1005,12 +1005,12 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                     if (result.gotItem()) {
                         typecheck_result.insert(typecheck_result.end(), make_move_iterator(trees.begin()),
                                                 make_move_iterator(trees.end()));
+                        for (auto &tree : trees) {
+                            gs->tracer().trace("reporting errors for {} file", tree.file.id());
+                            gs->errorQueue->flushErrorsForFile(*gs, tree.file);
+                        }
                     }
                     cfgInferProgress.reportProgress(fileq->doneEstimate());
-                    for (auto &tree : trees) {
-                        gs->tracer().trace("reporting errors for {} file", tree.file.id());
-                        gs->errorQueue->flushErrorsForFile(*gs, tree.file);
-                    }
                     if (preemptionManager) {
                         (*preemptionManager)->tryRunScheduledPreemptionTask(*gs);
                     }
