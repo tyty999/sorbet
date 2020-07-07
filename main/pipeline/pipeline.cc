@@ -984,7 +984,8 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                                                            file.data(igs).path());
                                     }
                                     // Stream out errors early
-                                   igs.tracer().trace("thread submitting typechecking results early for {} files", trees.size());
+                                    igs.tracer().trace("thread submitting typechecking results early for {} files",
+                                                       trees.size());
                                     treesq->push(move(trees), processedByThread);
                                     processedByThread = 0;
                                 }

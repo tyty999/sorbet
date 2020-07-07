@@ -60,17 +60,17 @@ TEST_CASE_FIXTURE(MultithreadedProtocolTest, "MultithreadedWrapperWorks") {
     assertDiagnostics(send(LSPMessage(make_unique<NotificationMessage>("2.0", LSPMethod::RESUME, nullopt))),
                       {{"yolo1.rb", 3, "bear"}});
 
- /*   auto counters = getCounters();
-    CHECK_EQ(counters.getCategoryCounter("lsp.messages.processed", "sorbet.workspaceEdit"), 1);
-    CHECK_EQ(counters.getTimings("task_latency", {{"method", "sorbet.workspaceEdit"}}).size(), 1);
-    CHECK_EQ(counters.getTimings("task_latency").size(), counters.getHistogramCount("task_latency"));
-    CHECK_EQ(counters.getCategoryCounterSum("lsp.messages.canceled"), 0);
-    CHECK_EQ(counters.getCategoryCounter("lsp.updates", "slowpath"), 1);
-    CHECK_EQ(counters.getCategoryCounterSum("lsp.updates"), 1);
-    // 1 per edit
-    //
-    */
-    //checkDiagnosticTimes(counters.getTimings("last_diagnostic_latency"), 2, /* assertUniqueStartTimes */ false);
+    /*   auto counters = getCounters();
+       CHECK_EQ(counters.getCategoryCounter("lsp.messages.processed", "sorbet.workspaceEdit"), 1);
+       CHECK_EQ(counters.getTimings("task_latency", {{"method", "sorbet.workspaceEdit"}}).size(), 1);
+       CHECK_EQ(counters.getTimings("task_latency").size(), counters.getHistogramCount("task_latency"));
+       CHECK_EQ(counters.getCategoryCounterSum("lsp.messages.canceled"), 0);
+       CHECK_EQ(counters.getCategoryCounter("lsp.updates", "slowpath"), 1);
+       CHECK_EQ(counters.getCategoryCounterSum("lsp.updates"), 1);
+       // 1 per edit
+       //
+       */
+    // checkDiagnosticTimes(counters.getTimings("last_diagnostic_latency"), 2, /* assertUniqueStartTimes */ false);
 }
 
 } // namespace sorbet::test::lsp
