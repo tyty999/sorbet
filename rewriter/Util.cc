@@ -198,7 +198,7 @@ ast::TreePtr ASTUtil::thunkBody(core::MutableContext ctx, ast::TreePtr &node) {
     if (send->fun != core::Names::lambda() && send->fun != core::Names::proc()) {
         return nullptr;
     }
-    if (!send->recv->isSelfReference()) {
+    if (!send->recv.isSelfReference()) {
         return nullptr;
     }
     if (send->block == nullptr) {
