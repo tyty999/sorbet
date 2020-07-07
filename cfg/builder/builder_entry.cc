@@ -38,7 +38,7 @@ unique_ptr<CFG> CFGBuilder::buildFor(core::Context ctx, ast::MethodDef &md) {
         auto *a = ast::MK::arg2Local(argExpr);
         synthesizeExpr(entry, a->localVariable, a->loc, make_unique<LoadArg>(md.symbol, i));
     }
-    auto cont = walk(cctx.withTarget(retSym), md.rhs.get(), entry);
+    auto cont = walk(cctx.withTarget(retSym), md.rhs, entry);
     core::LocalVariable retSym1(core::Names::finalReturn(), 0);
 
     auto rvLoc = cont->exprs.empty() || isa_instruction<LoadArg>(cont->exprs.back().value.get())
