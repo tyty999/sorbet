@@ -913,7 +913,7 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
     // Unless the error queue had a critical error, only typecheck should flush errors to the client, otherwise we will
     // drop errors in LSP mode.
     ENFORCE(gs->hadCriticalError() || gs->errorQueue->filesFlushedCount == 0);
-
+    gs->tracer().trace("typechecking {} files", what.size());
     vector<ast::ParsedFile> typecheck_result;
     const auto &epochManager = *gs->epochManager;
     // Record epoch at start of typechecking before any preemption occurs.
@@ -975,6 +975,7 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                                     core::FileRef file = job.file;
                                     try {
                                         core::Context ctx(igs, core::Symbols::root(), file);
+                                        igs.tracer().trace("thread typechecking {} file", file.id());
                                         auto parsedFile = typecheckOne(ctx, move(job), opts);
                                         trees.emplace_back(move(parsedFile));
                                     } catch (SorbetException &) {
@@ -982,7 +983,8 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                                         igs.tracer().error("Exception typing file: {} (backtrace is above)",
                                                            file.data(igs).path());
                                     }
-                                    // Stream out errors
+                                    // Stream out errors early
+                                   igs.tracer().trace("thread submitting typechecking results early for {} files", trees.size());
                                     treesq->push(move(trees), processedByThread);
                                     processedByThread = 0;
                                 }
@@ -990,6 +992,7 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                         }
                     }
                     if (processedByThread > 0) {
+                        igs.tracer().trace("thread submitting typechecking results for {} files", trees.size());
                         treesq->push(move(trees), processedByThread);
                     }
                 });
@@ -1005,6 +1008,7 @@ ast::ParsedFilesOrCancelled typecheck(unique_ptr<core::GlobalState> &gs, vector<
                     }
                     cfgInferProgress.reportProgress(fileq->doneEstimate());
                     for (auto &tree : trees) {
+                        gs->tracer().trace("reporting errors for {} file", tree.file.id());
                         gs->errorQueue->flushErrorsForFile(*gs, tree.file);
                     }
                     if (preemptionManager) {
