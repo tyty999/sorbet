@@ -50,7 +50,7 @@ class T::Enum
   ## Enum class methods ##
   sig {returns(T::Array[T.attached_class])}
   def self.values
-    if @values.nil?
+    if !@fully_initialized || @values.nil?
       raise "Attempting to access values of #{self.class} before it has been initialized." \
         " Enums are not initialized until the 'enums do' block they are defined in has finished running."
     end
@@ -63,7 +63,7 @@ class T::Enum
   # Note: Failed CriticalMethodsNoRuntimeTypingTest
   sig {params(serialized_val: SerializedVal).returns(T.nilable(T.attached_class)).checked(:never)}
   def self.try_deserialize(serialized_val)
-    if @mapping.nil?
+    if !@fully_initialized || @mapping.nil?
       raise "Attempting to access serialization map of #{self.class} before it has been initialized." \
         " Enums are not initialized until the 'enums do' block they are defined in has finished running."
     end
@@ -90,7 +90,7 @@ class T::Enum
   # @return [Boolean] Does the given serialized value correspond with any of this enum's values.
   sig {overridable.params(serialized_val: SerializedVal).returns(T::Boolean)}
   def self.has_serialized?(serialized_val)
-    if @mapping.nil?
+    if !@fully_initialized || @mapping.nil?
       raise "Attempting to access serialization map of #{self.class} before it has been initialized." \
         " Enums are not initialized until the 'enums do' block they are defined in has finished running."
     end
@@ -329,10 +329,11 @@ class T::Enum
       end
       @mapping[serialized] = instance
     end
+    @values ||= []
     @values.freeze
     @mapping.freeze
 
-    orphaned_instances = T.must(@values) - @mapping.values
+    orphaned_instances = @values - @mapping.values
     if !orphaned_instances.empty?
       raise "Enum values must be assigned to constants: #{orphaned_instances.map {|v| v.instance_variable_get('@serialized_val')}}"
     end

@@ -22,6 +22,11 @@ class T::Enum::Test::EnumTest < Critic::Unit::UnitTest
     end
   end
 
+  class EmptyEnum < T::Enum
+    enums do
+    end
+  end
+
   describe 'serialize' do
     describe 'default serialization' do
       it 'downcases the constant names' do
@@ -460,5 +465,45 @@ class T::Enum::Test::EnumTest < Critic::Unit::UnitTest
 
   it 'can be used with an assert' do
     assert(CardSuit::SPADE, 'some message')
+  end
+
+  it 'allows empty enums' do
+    assert_equal([], EmptyEnum.values)
+  end
+
+  it 'raises when values called inside enums do' do
+    exn = assert_raises(RuntimeError) do
+      Class.new(T::Enum) do
+        enums do
+          new
+          values
+        end
+      end
+    end
+    assert_match(/access values of .* before it has been initialized/, exn.message)
+  end
+
+  it 'raises when try_deserialize called inside enums do' do
+    exn = assert_raises(RuntimeError) do
+      Class.new(T::Enum) do
+        enums do
+          new
+          try_deserialize('')
+        end
+      end
+    end
+    assert_match(/access serialization map of .* before it has been initialized/, exn.message)
+  end
+
+  it 'raises when has_serialized? called inside enums do' do
+    exn = assert_raises(RuntimeError) do
+      Class.new(T::Enum) do
+        enums do
+          new
+          has_serialized?('')
+        end
+      end
+    end
+    assert_match(/access serialization map of .* before it has been initialized/, exn.message)
   end
 end
