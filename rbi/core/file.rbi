@@ -1470,7 +1470,7 @@ class File::Stat < Object
   # ```
   sig do
     params(
-        other: File::Stat,
+        other: BasicObject,
     )
     .returns(T.nilable(Integer))
   end
